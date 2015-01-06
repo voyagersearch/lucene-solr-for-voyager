@@ -771,7 +771,7 @@ public final class ManagedIndexSchema extends IndexSchema {
       // create a unified collection of field types from zk and in the local
       newSchema.mergeFieldTypesFromZk(document, xpath);
 
-      newSchema.loadFields(document, xpath);
+      newSchema.loadFields(document, xpath, schemaConf);
       // let's completely rebuild the copy fields from the schema in ZK.
       // create new copyField-related objects so we don't affect the
       // old schema

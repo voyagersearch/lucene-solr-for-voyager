@@ -108,6 +108,10 @@ New Features
   rate limit IO writes for each merge depending on incoming merge
   rate.  (Mike McCandless)
 
+* LUCENE-6155: Add payload support to MemoryIndex. The default highlighter's
+  QueryScorer and WeighedSpanTermExtractor now have setUsePayloads(bool).
+  (David Smiley)
+
 Optimizations
 
 * LUCENE-5960: Use a more efficient bitset, not a Set<Integer>, to
@@ -194,6 +198,9 @@ API Changes
 
 * LUCENE-5527: The Collector API has been refactored to use a dedicated Collector
   per leaf. (Shikhar Bhushan, Adrien Grand)
+
+* LUCENE-5702: The FieldComparator API has been refactor to a per-leaf API, just
+  like Collectors. (Adrien Grand)
 
 * LUCENE-4246: IndexWriter.close now always closes, even if it throws
   an exception.  The new IndexWriterConfig.setCommitOnClose (default

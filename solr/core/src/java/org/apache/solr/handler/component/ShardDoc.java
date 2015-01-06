@@ -180,6 +180,10 @@ class ShardFieldSortedHitQueue extends PriorityQueue<ShardDoc> {
         throw new SolrException(SERVER_ERROR, "Exception rewriting sort field " + sortField, e);
       }
     }
+    else if (type == SortField.Type.DOC) {
+      // HYMMM, this is not really true but better than an error?
+      return SHARD_ORDER;
+    }
     return comparatorFieldComparator(sortField);
   }
 
@@ -222,6 +226,16 @@ class ShardFieldSortedHitQueue extends PriorityQueue<ShardDoc> {
       }
     };
   }
+  
+  final static Comparator<ShardDoc> SHARD_ORDER = new Comparator<ShardDoc>() {
+    @Override
+    public final int compare(final ShardDoc v0, final ShardDoc v1) {
+//      System.out.println( "COMPARE: "
+//          +v0.orderInShard+"@"+v0.shardAddress+"/"+v0.id + " \t>> "
+//          +v1.orderInShard+"@"+v1.shardAddress+"/"+v1.id);
+      return Integer.compare(v0.orderInShard, v1.orderInShard);
+    }
+  };
 
   Comparator<ShardDoc> comparatorFieldComparator(SortField sortField) {
     final FieldComparator fieldComparator;

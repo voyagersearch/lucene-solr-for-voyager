@@ -118,16 +118,6 @@ Detailed Change List
 New Features
 ----------------------
 
-* SOLR-5287: You can edit files in the conf directory from the admin UI.
-  (Erick Erickson, Stefan Matheis)
-  Additional work:
-  - SOLR-5446: Admin UI - Allow changing Schema and Config (steffkes)
-  - SOLR-5458: Admin UI - Remove separated Pages for Config & Schema (steffkes)
-  - SOLR-5456: Admin UI - Allow creating new Files (steffkes)
-  - SOLR-5518: Added EditFileRequestHandler to deal with security issues around
-    modifying solr configuration files.  (Erick Erickson)
-  - SOLR-5539: Admin UI - Remove ability to create/modify files (steffkes)
-
 * SOLR-6103: Added DateRangeField for indexing date ranges, especially multi-valued ones.
   Supports facet.range, DateMath, and is mostly interoperable with TrieDateField.
   Based on LUCENE-5648. (David Smiley)
@@ -240,12 +230,18 @@ New Features
   
 * SOLR-6435: Add bin/post script to simplify posting content to Solr (ehatcher)
 
+* SOLR-6761: Ability to ignore commit and/or optimize requests from clients when running in
+  SolrCloud mode using the IgnoreCommitOptimizeUpdateProcessorFactory. (Timothy Potter)
+
 * SOLR-6797: Spatial fields that used to require units=degrees like
   SpatialRecursivePrefixTreeFieldType (RPT) now take distanceUnits=degrees|kilometers|miles
   instead.  It is applied to nearly all distance measurements involving the field: maxDistErr,
   distErr, d, geodist, score=distance|area|area2d. score now accepts these units as well. It does
   NOT affect distances embedded in WKT strings like BUFFER(POINT(200 10),0.2)).
   (Ishan Chattopadhyaya, David Smiley)
+
+* SOLR-6766: Expose HdfsDirectoryFactory Block Cache statistics via JMX.
+  (Mike Drob, Mark Miller)
   
 
 Bug Fixes
@@ -365,6 +361,11 @@ Bug Fixes
 * SOLR-6907: URLEncode documents directory in MorphlineMapperTest to handle spaces etc.
   in file name. (Ramkumar Aiyengar via Erick Erickson)
 
+* SOLR-6880: Harden ZkStateReader to expect that getCollectionLive may return null
+  as it's contract states. (Mark Miller, shalin)
+
+* SOLR-6643: Fix error reporting & logging of low level JVM Errors that occur when 
+  loading/reloading a SolrCore (hossman)
 
 Optimizations
 ----------------------
@@ -591,6 +592,9 @@ Other Changes
 * SOLR-6897: Nuke non-NRT mode from code and configuration. (Hossman, shalin)
 
 * SOLR-6830: Update Woodstox to 4.4.1 and StAX to 3.1.4. (ab)
+
+* SOLR-6918: No need to log exceptions (as warn) generated when creating MBean stats if
+  the core is shutting down (Timothy Potter)
 
 ==================  4.10.3 ==================
 

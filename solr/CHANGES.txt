@@ -112,6 +112,11 @@ Upgrading from Solr 4.x
   solrconfig.xml. Solr defaults to using NRT searchers regardless of the value in configuration
   and a warning is logged on startup if the solrconfig.xml has <nrtMode> specified.
 
+* There was an old spatial syntax to specify a circle using Circle(x,y d=...) which should be
+  replaced with simply using {!geofilt} (if you can) or BUFFER(POINT(x y),d). Likewise a rect syntax
+  comprised of minX minY maxX maxY that should now be replaced with
+  ENVELOPE(minX, maxX, maxY, minY).
+
 Detailed Change List
 ----------------------
 
@@ -171,7 +176,7 @@ New Features
 * SOLR-6605: Make ShardHandlerFactory maxConnections configurable.
   (Christine Poerschke via shalin)
 
-* SOLR-6585: RequestHandlers can optionaly handle sub paths as well (Noble Paul)
+* SOLR-6585: RequestHandlers can optionally handle sub paths as well (Noble Paul)
 
 * SOLR-6617: /update/json/docs path will use fully qualified node names by default
              (Noble Paul)
@@ -242,6 +247,15 @@ New Features
 
 * SOLR-6766: Expose HdfsDirectoryFactory Block Cache statistics via JMX.
   (Mike Drob, Mark Miller)
+
+* SOLR-2035: Add a VelocityResponseWriter $resource tool for locale-specific string lookups.
+  (Erik Hatcher)
+
+* SOLR-6916: Toggle payload support for the default highlighter via hl.payloads.  It's auto
+  enabled when the index has payloads. (David Smiley)
+
+* SOLR-6581: Efficient DocValues support and numeric collapse field implementations 
+  for Collapse and Expand (Joel Bernstein)
   
 
 Bug Fixes
@@ -366,6 +380,20 @@ Bug Fixes
 
 * SOLR-6643: Fix error reporting & logging of low level JVM Errors that occur when 
   loading/reloading a SolrCore (hossman)
+
+* SOLR-6839: Direct routing with CloudSolrServer will ignore the Overwrite document option.
+  (Mark Miller)
+
+* SOLR-6793: ReplicationHandler does not destroy all of it's created SnapPullers.
+  (Mark Miller)
+
+* SOLR-6946: Document -p port option for the create_core and create_collection actions in
+  bin/solr (Timothy Potter)
+
+* SOLR-6923: AutoAddReplicas also consults live_nodes to see if a state change has happened.
+  (Varun Thacker via Anshum Gupta)
+
+* SOLR-6941: DistributedQueue#containsTaskWithRequestId can fail with NPE. (Mark Miller)
 
 Optimizations
 ----------------------
@@ -595,6 +623,28 @@ Other Changes
 
 * SOLR-6918: No need to log exceptions (as warn) generated when creating MBean stats if
   the core is shutting down (Timothy Potter)
+
+* SOLR-6932: All HttpClient ConnectionManagers and SolrJ clients should always be shutdown
+  in tests and regular code. (Mark Miller)
+
+* SOLR-1723: VelocityResponseWriter improvements (Erik Hatcher)
+
+* SOLR-6324: Set finite default timeouts for select and update. (Ramkumar Aiyengar via Mark Miller)
+
+* SOLR-6952: bin/solr create action should copy configset directory instead of reusing
+  an existing configset in ZooKeeper by default (Timothy Potter)
+
+* SOLR-6933: bin/solr should provide a single "create" action that creates a core
+  or collection depending on whether Solr is running in standalone or cloud mode
+  (Timothy Potter)
+
+* SOLR-6496: LBHttpSolrClient stops server retries after the timeAllowed threshold is met.
+  (Steve Davids, Anshum Gupta)
+
+* SOLR-6904: Removed deprecated Circle & rect syntax. See upgrading notes.  (David Smiley)
+
+* SOLR-6943: HdfsDirectoryFactory should fall back to system props for most of it's config
+  if it is not found in solrconfig.xml. (Mark Miller, Mike Drob)
 
 ==================  4.10.3 ==================
 
@@ -1709,9 +1759,8 @@ New Features
 * SOLR-5320: Added support for tri-level compositeId routing.
   (Anshum Gupta via shalin)
   
-* SOLR-5287,SOLR-5522,SOLR-5446,SOLR-5456,SOLR-5539,SOLR-5458:
-  Admin UI - Added a new "Files" conf directory browser/file viewer.
-  (steffkes, Erick Erickson)
+* SOLR-5458: Admin UI - Added a new "Files" conf directory browser/file viewer.
+  (steffkes)
 
 * SOLR-5447, SOLR-5490: Add a QParserPlugin for Lucene's SimpleQueryParser.
   (Jack Conradson via shalin)

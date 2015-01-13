@@ -112,6 +112,8 @@ New Features
   QueryScorer and WeighedSpanTermExtractor now have setUsePayloads(bool).
   (David Smiley)
 
+* LUCENE-6166: Deletions (alone) can now trigger new merges.  (Mike McCandless)
+
 Optimizations
 
 * LUCENE-5960: Use a more efficient bitset, not a Set<Integer>, to
@@ -170,6 +172,9 @@ Optimizations
 
 * LUCENE-6145: Make EarlyTerminatingSortingCollector able to early-terminate
   when the sort order is a prefix of the index-time order. (Adrien Grand)
+
+* LUCENE-6178: Score boolean queries containing MUST_NOT clauses with BooleanScorer2,
+  to use skip list data and avoid unnecessary scoring. (Adrien Grand, Robert Muir)
 
 API Changes
 
@@ -412,6 +417,9 @@ Bug Fixes
 * LUCENE-6139: Highlighter: TokenGroup start & end offset getters should have
   been returning the offsets of just the matching tokens in the group when
   there's a distinction. (David Smiley)
+  
+* LUCENE-6173: NumericTermAttribute and spatial/CellTokenStream do not clone
+  their BytesRef(Builder)s. Also equals/hashCode was missing.  (Uwe Schindler)
   
 Documentation
 

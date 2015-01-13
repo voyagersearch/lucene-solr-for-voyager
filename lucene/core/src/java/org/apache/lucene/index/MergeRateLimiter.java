@@ -36,8 +36,7 @@ public class MergeRateLimiter extends RateLimiter {
   private final static int MIN_PAUSE_CHECK_MSEC = 25;
   volatile long totalBytesWritten;
 
-  // By default no IO limit:
-  double mbPerSec = Double.POSITIVE_INFINITY;
+  double mbPerSec;
   private long lastNS;
   private long minPauseCheckBytes;
   private boolean abort;
@@ -51,6 +50,9 @@ public class MergeRateLimiter extends RateLimiter {
   /** Sole constructor. */
   public MergeRateLimiter(MergePolicy.OneMerge merge) {
     this.merge = merge;
+
+    // Initially no IO limit; use setter here so minPauseCheckBytes is set:
+    setMBPerSec(Double.POSITIVE_INFINITY);
   }
 
   @Override
@@ -125,6 +127,10 @@ public class MergeRateLimiter extends RateLimiter {
 
   /** Returns NO if no pause happened, STOPPED if pause because rate was 0.0 (merge is stopped), PAUSED if paused with a normal rate limit. */
   private synchronized PauseResult maybePause(long bytes, long curNS) throws MergePolicy.MergeAbortedException {
+
+    // Now is a good time to abort the merge:
+    checkAbort();
+
     double secondsToPause = (bytes/1024./1024.) / mbPerSec;
 
     // Time we should sleep until; this is purely instantaneous
@@ -149,9 +155,6 @@ public class MergeRateLimiter extends RateLimiter {
 
     int sleepMS = (int) (curPauseNS / 1000000);
     int sleepNS = (int) (curPauseNS % 1000000);
-
-    // Now is a good time to abort the merge:
-    checkAbort();
 
     double rate = mbPerSec;
 

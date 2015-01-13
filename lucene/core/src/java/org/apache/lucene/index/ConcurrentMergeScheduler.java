@@ -394,8 +394,10 @@ public class ConcurrentMergeScheduler extends MergeScheduler {
   /**
    * Returns the number of merge threads that are alive. Note that this number
    * is &le; {@link #mergeThreads} size.
+   *
+   * @lucene.internal
    */
-  protected synchronized int mergeThreadCount() {
+  public synchronized int mergeThreadCount() {
     int count = 0;
     for (MergeThread mergeThread : mergeThreads) {
       if (mergeThread.isAlive() && mergeThread.merge.rateLimiter.getAbort() == false) {
@@ -722,7 +724,14 @@ public class ConcurrentMergeScheduler extends MergeScheduler {
       }
     }
 
-    newMerge.rateLimiter.setMBPerSec(targetMBPerSec);
+    double rate;
+
+    if (newMerge.maxNumSegments != -1) {
+      rate = forceMergeMBPerSec;
+    } else {
+      rate = targetMBPerSec;
+    }
+    newMerge.rateLimiter.setMBPerSec(rate);
     targetMBPerSecChanged();
   }
 

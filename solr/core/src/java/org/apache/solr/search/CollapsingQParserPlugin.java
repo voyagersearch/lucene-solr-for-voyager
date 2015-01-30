@@ -451,12 +451,6 @@ public class CollapsingQParserPlugin extends QParserPlugin {
     }
 
     @Override
-    public boolean acceptsDocsOutOfOrder() {
-      //Documents must be sent in order to this collector.
-      return false;
-    }
-
-    @Override
     protected void doSetNextReader(LeafReaderContext context) throws IOException {
       this.contexts[context.ord] = context;
       this.docBase = context.docBase;
@@ -663,12 +657,6 @@ public class CollapsingQParserPlugin extends QParserPlugin {
         this.boosts = true;
       }
 
-    }
-
-    @Override
-    public boolean acceptsDocsOutOfOrder() {
-      //Documents must be sent in order to this collector.
-      return false;
     }
 
     @Override
@@ -1993,7 +1981,7 @@ public class CollapsingQParserPlugin extends QParserPlugin {
     }
   }
 
-  private class MergeBoost {
+  static class MergeBoost {
 
     private int[] boostDocs;
     private int index = 0;

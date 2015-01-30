@@ -18,18 +18,13 @@ package org.apache.lucene.search;
  */
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.BooleanQuery.BooleanWeight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.LuceneTestCase;
@@ -62,66 +57,6 @@ public class TestBooleanScorer extends LuceneTestCase {
     IndexSearcher indexSearcher = newSearcher(ir);
     ScoreDoc[] hits = indexSearcher.search(query, null, 1000).scoreDocs;
     assertEquals("Number of matched documents", 2, hits.length);
-    ir.close();
-    directory.close();
-  }
-  
-  public void testEmptyBucketWithMoreDocs() throws Exception {
-    // This test checks the logic of nextDoc() when all sub scorers have docs
-    // beyond the first bucket (for example). Currently, the code relies on the
-    // 'more' variable to work properly, and this test ensures that if the logic
-    // changes, we have a test to back it up.
-    
-    Directory directory = newDirectory();
-    RandomIndexWriter writer = new RandomIndexWriter(random(), directory);
-    writer.commit();
-    IndexReader ir = writer.getReader();
-    writer.close();
-    IndexSearcher searcher = newSearcher(ir);
-    BooleanWeight weight = (BooleanWeight) new BooleanQuery().createWeight(searcher);
-    BulkScorer[] scorers = new BulkScorer[] {new BulkScorer() {
-      private int doc = -1;
-
-      @Override
-      public boolean score(LeafCollector c, int maxDoc) throws IOException {
-        assert doc == -1;
-        doc = 3000;
-        FakeScorer fs = new FakeScorer();
-        fs.doc = doc;
-        fs.score = 1.0f;
-        c.setScorer(fs);
-        c.collect(3000);
-        return false;
-      }
-    }};
-    
-    BooleanScorer bs = new BooleanScorer(weight, false, 1, Arrays.asList(scorers), Collections.<BulkScorer>emptyList(), scorers.length);
-
-    final List<Integer> hits = new ArrayList<>();
-    bs.score(new SimpleCollector() {
-      int docBase;
-      @Override
-      public void setScorer(Scorer scorer) {
-      }
-      
-      @Override
-      public void collect(int doc) {
-        hits.add(docBase+doc);
-      }
-      
-      @Override
-      protected void doSetNextReader(LeafReaderContext context) throws IOException {
-        docBase = context.docBase;
-      }
-      
-      @Override
-      public boolean acceptsDocsOutOfOrder() {
-        return true;
-      }
-      });
-
-    assertEquals("should have only 1 hit", 1, hits.size());
-    assertEquals("hit should have been docID=3000", 3000, hits.get(0).intValue());
     ir.close();
     directory.close();
   }
@@ -162,14 +97,15 @@ public class TestBooleanScorer extends LuceneTestCase {
         }
 
         @Override
-        public BulkScorer bulkScorer(LeafReaderContext context, boolean scoreDocsInOrder, Bits acceptDocs) {
+        public BulkScorer bulkScorer(LeafReaderContext context, Bits acceptDocs) {
           return new BulkScorer() {
 
             @Override
-            public boolean score(LeafCollector collector, int max) throws IOException {
+            public int score(LeafCollector collector, int min, int max) throws IOException {
+              assert min == 0;
               collector.setScorer(new FakeScorer());
               collector.collect(0);
-              return false;
+              return DocIdSetIterator.NO_MORE_DOCS;
             }
           };
         }

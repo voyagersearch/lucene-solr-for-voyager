@@ -36,8 +36,7 @@ import org.apache.solr.common.cloud.ZkStateReader;
 import org.apache.solr.common.util.NamedList;
 import org.apache.solr.core.CoreContainer;
 import org.apache.solr.servlet.SolrDispatchFilter;
-import org.junit.After;
-import org.junit.Before;
+import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -73,24 +72,13 @@ public class HttpPartitionTest extends AbstractFullDistribZkTestBase {
   public HttpPartitionTest() {
     super();
     sliceCount = 2;
-    shardCount = 3;
+    fixShardCount(3);
   }
   
-  @Before
   @Override
-  public void setUp() throws Exception {
-    super.setUp();
+  public void distribSetUp() throws Exception {
+    super.distribSetUp();
     System.setProperty("numShards", Integer.toString(sliceCount));
-  }
-  
-  @Override
-  @After
-  public void tearDown() throws Exception {    
-    try {
-      super.tearDown();
-    } catch (Exception exc) {}
-    
-    resetExceptionIgnores();
   }
   
   /**
@@ -104,8 +92,8 @@ public class HttpPartitionTest extends AbstractFullDistribZkTestBase {
     return createProxiedJetty(solrHome, dataDir, shardList, solrConfigOverride, schemaOverride);
   }
 
-  @Override
-  public void doTest() throws Exception {
+  @Test
+  public void test() throws Exception {
     waitForThingsToLevelOut(30000);
 
     testLeaderInitiatedRecoveryCRUD();
@@ -374,23 +362,17 @@ public class HttpPartitionTest extends AbstractFullDistribZkTestBase {
     log.info("Sending doc 2 to old leader "+leader.getName());
     try {
       leaderSolr.add(doc);
-      leaderSolr.shutdown();
+      leaderSolr.close();
 
       // if the add worked, then the doc must exist on the new leader
-      HttpSolrClient newLeaderSolr = getHttpSolrClient(currentLeader, testCollectionName);
-      try {
+      try (HttpSolrClient newLeaderSolr = getHttpSolrClient(currentLeader, testCollectionName)) {
         assertDocExists(newLeaderSolr, testCollectionName, "2");
-      } finally {
-        newLeaderSolr.shutdown();
       }
 
     } catch (SolrException exc) {
       // this is ok provided the doc doesn't exist on the current leader
-      leaderSolr = getHttpSolrClient(currentLeader, testCollectionName);
-      try {
-        leaderSolr.add(doc); // this should work
-      } finally {
-        leaderSolr.shutdown();
+      try (HttpSolrClient client = getHttpSolrClient(currentLeader, testCollectionName)) {
+        client.add(doc); // this should work
       }
     }
 
@@ -437,12 +419,12 @@ public class HttpPartitionTest extends AbstractFullDistribZkTestBase {
   protected void assertDocsExistInAllReplicas(List<Replica> notLeaders,
       String testCollectionName, int firstDocId, int lastDocId)
       throws Exception {
-    Replica leader = 
+    Replica leader =
         cloudClient.getZkStateReader().getLeaderRetry(testCollectionName, "shard1", 10000);
     HttpSolrClient leaderSolr = getHttpSolrClient(leader, testCollectionName);
     List<HttpSolrClient> replicas =
         new ArrayList<HttpSolrClient>(notLeaders.size());
-    
+
     for (Replica r : notLeaders) {
       replicas.add(getHttpSolrClient(r, testCollectionName));
     }
@@ -456,10 +438,10 @@ public class HttpPartitionTest extends AbstractFullDistribZkTestBase {
       }
     } finally {
       if (leaderSolr != null) {
-        leaderSolr.shutdown();
+        leaderSolr.close();
       }
       for (HttpSolrClient replicaSolr : replicas) {
-        replicaSolr.shutdown();
+        replicaSolr.close();
       }
     }
   }

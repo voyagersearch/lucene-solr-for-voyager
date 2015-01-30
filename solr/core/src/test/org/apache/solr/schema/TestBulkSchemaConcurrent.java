@@ -22,7 +22,6 @@ import static java.text.MessageFormat.format;
 import static org.apache.solr.rest.schema.TestBulkSchemaAPI.getCopyFields;
 import static org.apache.solr.rest.schema.TestBulkSchemaAPI.getObj;
 
-import java.io.IOException;
 import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -39,8 +38,8 @@ import org.apache.solr.cloud.AbstractFullDistribZkTestBase;
 import org.apache.solr.common.cloud.ZkStateReader;
 import org.apache.solr.util.RESTfulServerProvider;
 import org.apache.solr.util.RestTestHarness;
-import org.junit.After;
 import org.junit.BeforeClass;
+import org.junit.Test;
 import org.noggit.JSONParser;
 import org.noggit.ObjectBuilder;
 import org.slf4j.Logger;
@@ -71,17 +70,17 @@ public class TestBulkSchemaConcurrent  extends AbstractFullDistribZkTestBase {
       restTestHarnesses.add(harness);
     }
   }
-  
-  @After
-  public void tearDown() throws Exception {
-    super.tearDown();
+
+  @Override
+  public void distribTearDown() throws Exception {
+    super.distribTearDown();
     for (RestTestHarness r : restTestHarnesses) {
       r.close();
     }
   }
-  
-  @Override
-  public void doTest() throws Exception {
+
+  @Test
+  public void test() throws Exception {
 
     final int threadCount = 5;
     setupHarnesses();
@@ -98,8 +97,6 @@ public class TestBulkSchemaConcurrent  extends AbstractFullDistribZkTestBase {
             ArrayList errs = new ArrayList();
             collectErrors.add(errs);
             invokeBulkCall(finalI,errs);
-          } catch (IOException e) {
-            e.printStackTrace();
           } catch (Exception e) {
             e.printStackTrace();
           }
@@ -115,7 +112,7 @@ public class TestBulkSchemaConcurrent  extends AbstractFullDistribZkTestBase {
     boolean success = true;
 
     for (List e : collectErrors) {
-      if(!e.isEmpty()){
+      if(e != null &&  !e.isEmpty()){
         success = false;
         log.error(e.toString());
       }

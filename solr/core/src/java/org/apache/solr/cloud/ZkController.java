@@ -50,10 +50,18 @@ import org.apache.solr.core.CloseHook;
 import org.apache.solr.core.CoreContainer;
 import org.apache.solr.core.CoreDescriptor;
 import org.apache.solr.core.SolrCore;
-import org.apache.solr.core.SolrResourceLoader;
 import org.apache.solr.handler.component.ShardHandler;
 import org.apache.solr.update.UpdateLog;
 import org.apache.solr.update.UpdateShardHandler;
+
+import static org.apache.solr.common.cloud.ZkStateReader.BASE_URL_PROP;
+import static org.apache.solr.common.cloud.ZkStateReader.COLLECTION_PROP;
+import static org.apache.solr.common.cloud.ZkStateReader.CORE_NAME_PROP;
+import static org.apache.solr.common.cloud.ZkStateReader.ELECTION_NODE_PROP;
+import static org.apache.solr.common.cloud.ZkStateReader.NODE_NAME_PROP;
+import static org.apache.solr.common.cloud.ZkStateReader.REJOIN_AT_HEAD_PROP;
+import static org.apache.solr.common.cloud.ZkStateReader.SHARD_ID_PROP;
+
 import org.apache.zookeeper.CreateMode;
 import org.apache.zookeeper.KeeperException;
 import org.apache.zookeeper.KeeperException.ConnectionLossException;
@@ -607,15 +615,13 @@ public final class ZkController {
 
       ShardHandler shardHandler;
       UpdateShardHandler updateShardHandler;
-      String adminPath;
       shardHandler = cc.getShardHandlerFactory().getShardHandler();
       updateShardHandler = cc.getUpdateShardHandler();
-      adminPath = cc.getAdminPath();
       
       if (!zkRunOnly) {
         overseerElector = new LeaderElector(zkClient);
         this.overseer = new Overseer(shardHandler, updateShardHandler,
-            adminPath, zkStateReader, this, cc.getConfig());
+            CoreContainer.CORES_HANDLER_PATH, zkStateReader, this, cc.getConfig());
         ElectionContext context = new OverseerElectionContext(zkClient,
             overseer, getNodeName());
         overseerElector.setup(context);
@@ -848,12 +854,10 @@ public final class ZkController {
       // Restore the interrupted status
       Thread.currentThread().interrupt();
       throw new ZooKeeperException(SolrException.ErrorCode.SERVER_ERROR, "", e);
-    } catch (KeeperException e) {
-      throw new ZooKeeperException(SolrException.ErrorCode.SERVER_ERROR, "", e);
-    } catch (IOException e) {
+    } catch (KeeperException | IOException e) {
       throw new ZooKeeperException(SolrException.ErrorCode.SERVER_ERROR, "", e);
     }
-    
+
 
     // in this case, we want to wait for the leader as long as the leader might 
     // wait for a vote, at least - but also long enough that a large cluster has
@@ -1022,7 +1026,7 @@ public final class ZkController {
  
     ZkNodeProps ourProps = new ZkNodeProps(props);
 
-    
+
     ElectionContext context = new ShardLeaderElectionContext(leaderElector, shardId,
         collection, coreNodeName, ourProps, this, cc);
 
@@ -1629,9 +1633,7 @@ public final class ZkController {
         log.info("Replica "+myCoreNodeName+
             " NOT in leader-initiated recovery, need to wait for leader to see down state.");
             
-        HttpSolrClient client = null;
-        client = new HttpSolrClient(leaderBaseUrl);
-        try {
+        try (HttpSolrClient client = new HttpSolrClient(leaderBaseUrl)) {
           client.setConnectionTimeout(15000);
           client.setSoTimeout(120000);
           WaitForState prepCmd = new WaitForState();
@@ -1682,8 +1684,8 @@ public final class ZkController {
               }
             }
           }
-        } finally {
-          client.shutdown();
+        } catch (IOException e) {
+          SolrException.log(log, "Error closing HttpSolrClient", e);
         }
       }
     }
@@ -1860,6 +1862,31 @@ public final class ZkController {
 
   }
 
+  public void rejoinShardLeaderElection(SolrParams params) {
+    try {
+      String collectionName = params.get(COLLECTION_PROP);
+      String shardId = params.get(SHARD_ID_PROP);
+      String nodeName = params.get(NODE_NAME_PROP);
+      String coreName = params.get(CORE_NAME_PROP);
+      String electionNode = params.get(ELECTION_NODE_PROP);
+      String baseUrl = params.get(BASE_URL_PROP);
+
+      ZkNodeProps zkProps = new ZkNodeProps(CORE_NAME_PROP, coreName, NODE_NAME_PROP, nodeName, COLLECTION_PROP, collectionName,
+          SHARD_ID_PROP, shardId, ELECTION_NODE_PROP, electionNode, BASE_URL_PROP, baseUrl);
+
+      ShardLeaderElectionContext context = new ShardLeaderElectionContext(leaderElector, shardId, collectionName,
+          nodeName, zkProps, this, getCoreContainer());
+      LeaderElector elect = new LeaderElector(this.zkClient);
+      context.leaderSeqPath = context.electionPath + LeaderElector.ELECTION_NODE + "/" + electionNode;
+      elect.setup(context);
+
+      elect.retryElection(context, params.getBool(REJOIN_AT_HEAD_PROP));
+    } catch (Exception e) {
+      throw new SolrException(ErrorCode.SERVER_ERROR, "Unable to rejoin election", e);
+    }
+
+  }
+
   public void checkOverseerDesignate() {
     try {
       byte[] data = zkClient.getData(ZkStateReader.ROLES, null, new Stat(), true);
@@ -1991,14 +2018,10 @@ public final class ZkController {
       stateData = zkClient.getData(znodePath, null, new Stat(), false);
     } catch (NoNodeException ignoreMe) {
       // safe to ignore as this znode will only exist if the leader initiated recovery
-    } catch (ConnectionLossException cle) {
+    } catch (ConnectionLossException | SessionExpiredException cle) {
       // sort of safe to ignore ??? Usually these are seen when the core is going down
       // or there are bigger issues to deal with than reading this znode
       log.warn("Unable to read "+znodePath+" due to: "+cle);
-    } catch (SessionExpiredException see) {
-      // sort of safe to ignore ??? Usually these are seen when the core is going down
-      // or there are bigger issues to deal with than reading this znode
-      log.warn("Unable to read "+znodePath+" due to: "+see);
     } catch (Exception exc) {
       log.error("Failed to read data from znode "+znodePath+" due to: "+exc);
       if (exc instanceof SolrException) {
@@ -2294,7 +2317,7 @@ public final class ZkController {
 
   private void setConfWatcher(String zkDir, Watcher watcher) {
     try {
-      zkClient.exists(zkDir,watcher,true);
+      zkClient.exists(zkDir, watcher, true);
     } catch (KeeperException e) {
       log.error("failed to set watcher for conf dir {} ", zkDir);
     } catch (InterruptedException e) {

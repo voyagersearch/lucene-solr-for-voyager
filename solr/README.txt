@@ -46,7 +46,7 @@ To see all available options for starting Solr, please do:
 After starting Solr, create either a core or collection depending on whether
 Solr is running in standalone (core) or SolrCloud mode (collection) by doing:
 
-  bin/solr create -n <name>
+  bin/solr create -c <name>
 
 This will create a collection that uses a data-driven schema which tries to guess
 the correct field type when you add documents to the index. To see all available
@@ -79,24 +79,18 @@ For instance, if you want to run the Solr Data Import Handler example, do:
 Indexing Documents
 ---------------
 
-To add documents to the index, use the post.jar in
-the example/exampledocs subdirectory (while Solr is running), for example:
+To add documents to the index, use bin/post.  For example:
 
-     cd example/exampledocs
-     java -Dc=<collection_name> -jar post.jar *.xml
+     bin/post -c <collection_name> example/exampledocs/*.xml
 
 For more information about Solr examples please read...
 
  * example/solr/README.txt
    For more information about the "Solr Home" and Solr specific configuration
- * http://lucene.apache.org/solr/tutorial.html
-   For a Tutorial using this example configuration
- * http://wiki.apache.org/solr/SolrResources
+ * http://lucene.apache.org/solr/quickstart.html
+   For a Quick Start guide
+ * http://lucene.apache.org/solr/resources.html
    For a list of other tutorials and introductory articles.
-
-A tutorial is available at:
-
-   http://lucene.apache.org/solr/tutorial.html
 
 or linked from "docs/index.html" in a binary distribution.
 
@@ -155,7 +149,7 @@ Instructions for Building Apache Solr from Source
    for building, testing, and packaging Solr.
   
    NOTE: 
-   To see Solr in action, you may want to use the "ant example" command to build
+   To see Solr in action, you may want to use the "ant server" command to build
    and package Solr into the server/webapps directory. See also server/README.txt.
 
 

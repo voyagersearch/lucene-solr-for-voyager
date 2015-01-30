@@ -21,7 +21,6 @@ import static java.util.Arrays.asList;
 import static org.apache.solr.core.ConfigOverlay.getObjectByPath;
 import static org.noggit.ObjectBuilder.getVal;
 
-import java.io.IOException;
 import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
 import java.text.MessageFormat;
@@ -48,7 +47,7 @@ import org.apache.solr.common.cloud.ZkStateReader;
 import org.apache.solr.core.ConfigOverlay;
 import org.apache.solr.util.RESTfulServerProvider;
 import org.apache.solr.util.RestTestHarness;
-import org.junit.After;
+import org.junit.Test;
 import org.noggit.JSONParser;
 import org.noggit.ObjectBuilder;
 import org.slf4j.Logger;
@@ -72,17 +71,17 @@ public class TestSolrConfigHandlerConcurrent extends AbstractFullDistribZkTestBa
       restTestHarnesses.add(harness);
     }
   }
-  
-  @After
-  public void tearDown() throws Exception {
-    super.tearDown();
+
+  @Override
+  public void distribTearDown() throws Exception {
+    super.distribTearDown();
     for (RestTestHarness h : restTestHarnesses) {
       h.close();
     }
   }
 
-  @Override
-  public void doTest() throws Exception {
+  @Test
+  public void test() throws Exception {
     Map editable_prop_map = (Map) new ObjectBuilder(new JSONParser(new StringReader(
         ConfigOverlay.MAPPING))).getObject();
     Map caches = (Map) editable_prop_map.get("query");
@@ -100,8 +99,6 @@ public class TestSolrConfigHandlerConcurrent extends AbstractFullDistribZkTestBa
             ArrayList errs = new ArrayList();
             collectErrors.add(errs);
             invokeBulkCall((String)e.getKey() , errs, (Map) e.getValue());
-          } catch (IOException e) {
-            e.printStackTrace();
           } catch (Exception e) {
             e.printStackTrace();
           }

@@ -34,6 +34,7 @@ import java.lang.reflect.Method;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.text.Collator;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -58,8 +59,8 @@ import java.util.logging.Logger;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.MockAnalyzer;
 import org.apache.lucene.document.Document;
-import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Field.Store;
+import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.document.TextField;
@@ -78,8 +79,8 @@ import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexReader.ReaderClosedListener;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
@@ -91,6 +92,7 @@ import org.apache.lucene.index.LogDocMergePolicy;
 import org.apache.lucene.index.LogMergePolicy;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.MergeScheduler;
+import org.apache.lucene.index.MergeTrigger;
 import org.apache.lucene.index.MismatchedDirectoryReader;
 import org.apache.lucene.index.MismatchedLeafReader;
 import org.apache.lucene.index.MockRandomMergePolicy;
@@ -107,8 +109,8 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.Terms;
-import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.index.TermsEnum.SeekStatus;
+import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.index.TieredMergePolicy;
 import org.apache.lucene.search.AssertingIndexSearcher;
 import org.apache.lucene.search.DocIdSet;
@@ -125,8 +127,8 @@ import org.apache.lucene.store.FlushInfo;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.LockFactory;
 import org.apache.lucene.store.MergeInfo;
-import org.apache.lucene.store.MockDirectoryWrapper;
 import org.apache.lucene.store.MockDirectoryWrapper.Throttling;
+import org.apache.lucene.store.MockDirectoryWrapper;
 import org.apache.lucene.store.NRTCachingDirectory;
 import org.apache.lucene.util.automaton.AutomatonTestUtil;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
@@ -153,16 +155,16 @@ import com.carrotsearch.randomizedtesting.annotations.Listeners;
 import com.carrotsearch.randomizedtesting.annotations.SeedDecorators;
 import com.carrotsearch.randomizedtesting.annotations.TestGroup;
 import com.carrotsearch.randomizedtesting.annotations.TestMethodProviders;
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakAction;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakAction.Action;
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakAction;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakGroup;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakGroup.Group;
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakGroup;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakLingering;
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope.Scope;
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakZombies;
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakZombies.Consequence;
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakZombies;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.rules.NoClassHooksShadowingRule;
@@ -689,10 +691,8 @@ public abstract class LuceneTestCase extends Assert {
     m.setAccessible(true);
     try {
       m.invoke(IndexWriter.class, limit);
-    } catch (IllegalAccessException iae) {
+    } catch (IllegalAccessException | InvocationTargetException iae) {
       throw new RuntimeException(iae);
-    } catch (InvocationTargetException ite) {
-      throw new RuntimeException(ite);
     }
   }
 
@@ -912,7 +912,8 @@ public abstract class LuceneTestCase extends Assert {
       } else {
         cms = new ConcurrentMergeScheduler() {
             @Override
-            protected synchronized void maybeStall(IndexWriter writer) {
+            protected synchronized boolean maybeStall(IndexWriter writer) {
+              return true;
             }
           };
       }
@@ -1559,78 +1560,85 @@ public abstract class LuceneTestCase extends Assert {
       throw null; // dummy to prevent compiler failure
     }
   }
+
+  public static IndexReader wrapReader(IndexReader r) throws IOException {
+    Random random = random();
+      
+    // TODO: remove this, and fix those tests to wrap before putting slow around:
+    final boolean wasOriginallyAtomic = r instanceof LeafReader;
+    for (int i = 0, c = random.nextInt(6)+1; i < c; i++) {
+      switch(random.nextInt(6)) {
+      case 0:
+        r = SlowCompositeReaderWrapper.wrap(r);
+        break;
+      case 1:
+        // will create no FC insanity in atomic case, as ParallelLeafReader has own cache key:
+        r = (r instanceof LeafReader) ?
+          new ParallelLeafReader((LeafReader) r) :
+        new ParallelCompositeReader((CompositeReader) r);
+        break;
+      case 2:
+        // Häckidy-Hick-Hack: a standard MultiReader will cause FC insanity, so we use
+        // QueryUtils' reader with a fake cache key, so insanity checker cannot walk
+        // along our reader:
+        r = new FCInvisibleMultiReader(r);
+        break;
+      case 3:
+        final LeafReader ar = SlowCompositeReaderWrapper.wrap(r);
+        final List<String> allFields = new ArrayList<>();
+        for (FieldInfo fi : ar.getFieldInfos()) {
+          allFields.add(fi.name);
+        }
+        Collections.shuffle(allFields, random);
+        final int end = allFields.isEmpty() ? 0 : random.nextInt(allFields.size());
+        final Set<String> fields = new HashSet<>(allFields.subList(0, end));
+        // will create no FC insanity as ParallelLeafReader has own cache key:
+        r = new ParallelLeafReader(
+                                   new FieldFilterLeafReader(ar, fields, false),
+                                   new FieldFilterLeafReader(ar, fields, true)
+                                   );
+        break;
+      case 4:
+        // Häckidy-Hick-Hack: a standard Reader will cause FC insanity, so we use
+        // QueryUtils' reader with a fake cache key, so insanity checker cannot walk
+        // along our reader:
+        if (r instanceof LeafReader) {
+          r = new AssertingLeafReader((LeafReader)r);
+        } else if (r instanceof DirectoryReader) {
+          r = new AssertingDirectoryReader((DirectoryReader)r);
+        }
+        break;
+      case 5:
+        if (r instanceof LeafReader) {
+          r = new MismatchedLeafReader((LeafReader)r, random);
+        } else if (r instanceof DirectoryReader) {
+          r = new MismatchedDirectoryReader((DirectoryReader)r, random);
+        }
+        break;
+      default:
+        fail("should not get here");
+      }
+    }
+    if (wasOriginallyAtomic) {
+      r = SlowCompositeReaderWrapper.wrap(r);
+    } else if ((r instanceof CompositeReader) && !(r instanceof FCInvisibleMultiReader)) {
+      // prevent cache insanity caused by e.g. ParallelCompositeReader, to fix we wrap one more time:
+      r = new FCInvisibleMultiReader(r);
+    }
+    if (VERBOSE) {
+      System.out.println("wrapReader wrapped: " +r);
+    }
+
+    return r;
+  }
   
   /**
    * Sometimes wrap the IndexReader as slow, parallel or filter reader (or
    * combinations of that)
    */
   public static IndexReader maybeWrapReader(IndexReader r) throws IOException {
-    Random random = random();
     if (rarely()) {
-      // TODO: remove this, and fix those tests to wrap before putting slow around:
-      final boolean wasOriginallyAtomic = r instanceof LeafReader;
-      for (int i = 0, c = random.nextInt(6)+1; i < c; i++) {
-        switch(random.nextInt(6)) {
-          case 0:
-            r = SlowCompositeReaderWrapper.wrap(r);
-            break;
-          case 1:
-            // will create no FC insanity in atomic case, as ParallelLeafReader has own cache key:
-            r = (r instanceof LeafReader) ?
-              new ParallelLeafReader((LeafReader) r) :
-              new ParallelCompositeReader((CompositeReader) r);
-            break;
-          case 2:
-            // Häckidy-Hick-Hack: a standard MultiReader will cause FC insanity, so we use
-            // QueryUtils' reader with a fake cache key, so insanity checker cannot walk
-            // along our reader:
-            r = new FCInvisibleMultiReader(r);
-            break;
-          case 3:
-            final LeafReader ar = SlowCompositeReaderWrapper.wrap(r);
-            final List<String> allFields = new ArrayList<>();
-            for (FieldInfo fi : ar.getFieldInfos()) {
-              allFields.add(fi.name);
-            }
-            Collections.shuffle(allFields, random);
-            final int end = allFields.isEmpty() ? 0 : random.nextInt(allFields.size());
-            final Set<String> fields = new HashSet<>(allFields.subList(0, end));
-            // will create no FC insanity as ParallelLeafReader has own cache key:
-            r = new ParallelLeafReader(
-              new FieldFilterLeafReader(ar, fields, false),
-              new FieldFilterLeafReader(ar, fields, true)
-            );
-            break;
-          case 4:
-            // Häckidy-Hick-Hack: a standard Reader will cause FC insanity, so we use
-            // QueryUtils' reader with a fake cache key, so insanity checker cannot walk
-            // along our reader:
-            if (r instanceof LeafReader) {
-              r = new AssertingLeafReader((LeafReader)r);
-            } else if (r instanceof DirectoryReader) {
-              r = new AssertingDirectoryReader((DirectoryReader)r);
-            }
-            break;
-          case 5:
-            if (r instanceof LeafReader) {
-              r = new MismatchedLeafReader((LeafReader)r, random);
-            } else if (r instanceof DirectoryReader) {
-              r = new MismatchedDirectoryReader((DirectoryReader)r, random);
-            }
-            break;
-          default:
-            fail("should not get here");
-        }
-      }
-      if (wasOriginallyAtomic) {
-        r = SlowCompositeReaderWrapper.wrap(r);
-      } else if ((r instanceof CompositeReader) && !(r instanceof FCInvisibleMultiReader)) {
-        // prevent cache insanity caused by e.g. ParallelCompositeReader, to fix we wrap one more time:
-        r = new FCInvisibleMultiReader(r);
-      }
-      if (VERBOSE) {
-        System.out.println("maybeWrapReader wrapped: " +r);
-      }
+      r = wrapReader(r);
     }
     return r;
   }
@@ -2537,5 +2545,18 @@ public abstract class LuceneTestCase extends Assert {
     boolean enabled = false;
     assert enabled = true; // Intentional side-effect!!!
     assertsAreEnabled = enabled;
+  }
+  
+  /** 
+   * Compares two strings with a collator, also looking to see if the the strings
+   * are impacted by jdk bugs. may not avoid all jdk bugs in tests.
+   * see https://bugs.openjdk.java.net/browse/JDK-8071862
+   */
+  public static int collate(Collator collator, String s1, String s2) {
+    int v1 = collator.compare(s1, s2);
+    int v2 = collator.getCollationKey(s1).compareTo(collator.getCollationKey(s2));
+    // if collation keys don't really respect collation order, things are screwed.
+    assumeTrue("hit JDK collator bug", Integer.signum(v1) == Integer.signum(v2));
+    return v1;
   }
 }

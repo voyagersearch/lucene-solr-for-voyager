@@ -17,17 +17,6 @@ package org.apache.solr.cloud;
  * limitations under the License.
  */
 
-import java.io.File;
-import java.net.ServerSocket;
-import java.net.URI;
-import java.net.URL;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.apache.solr.SolrTestCaseJ4.SuppressSSL;
 import org.apache.solr.client.solrj.embedded.JettySolrRunner;
@@ -36,12 +25,16 @@ import org.apache.solr.client.solrj.request.UpdateRequest;
 import org.apache.solr.common.SolrInputDocument;
 import org.apache.solr.common.cloud.Replica;
 import org.apache.solr.common.cloud.ZkCoreNodeProps;
-import org.apache.solr.common.cloud.ZkStateReader;
 import org.apache.solr.common.util.NamedList;
-import org.junit.After;
-import org.junit.Before;
+import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.io.File;
+import java.net.ServerSocket;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
 
 //@AwaitsFix(bugUrl = "https://issues.apache.org/jira/browse/SOLR-6157")
 
@@ -59,31 +52,25 @@ public class ReplicationFactorTest extends AbstractFullDistribZkTestBase {
   public ReplicationFactorTest() {
     super();
     sliceCount = 3;
-    shardCount = 3;
+    fixShardCount(3);
   }
   
-  @Before
   @Override
-  public void setUp() throws Exception {
-    super.setUp();
+  public void distribSetUp() throws Exception {
+    super.distribSetUp();
     System.setProperty("numShards", Integer.toString(sliceCount));
   }
   
   @Override
-  @After
-  public void tearDown() throws Exception {
+  public void distribTearDown() throws Exception {
     
     log.info("tearing down replicationFactorTest!");
     
     System.clearProperty("numShards");
     
-    try {
-      super.tearDown();
-    } catch (Exception exc) {}
-    
-    resetExceptionIgnores();    
-    
-    log.info("super.tearDown complete, closing all socket proxies");
+    super.distribTearDown();
+
+    log.info("super.distribTearDown complete, closing all socket proxies");
     if (!proxies.isEmpty()) {
       for (SocketProxy proxy : proxies.values()) {
         proxy.close();
@@ -111,10 +98,10 @@ public class ReplicationFactorTest extends AbstractFullDistribZkTestBase {
       port = s.getLocalPort();
     }
     return port;
-  }  
-   
-  @Override
-  public void doTest() throws Exception {
+  }
+
+  @Test
+  public void test() throws Exception {
     log.info("replication factor test running");
     waitForThingsToLevelOut(30000);
     
@@ -186,20 +173,16 @@ public class ReplicationFactorTest extends AbstractFullDistribZkTestBase {
   
   @SuppressWarnings("rawtypes")
   protected void sendNonDirectUpdateRequestReplica(Replica replica, UpdateRequest up, int expectedRf, String collection) throws Exception {
-    HttpSolrClient solrServer = null;
-    try {
-      ZkCoreNodeProps zkProps = new ZkCoreNodeProps(replica);
-      String url = zkProps.getBaseUrl() + "/" + collection;
-      solrServer = new HttpSolrClient(url);
-            
+
+    ZkCoreNodeProps zkProps = new ZkCoreNodeProps(replica);
+    String url = zkProps.getBaseUrl() + "/" + collection;
+
+    try (HttpSolrClient solrServer = new HttpSolrClient(url)) {
       NamedList resp = solrServer.request(up);
       NamedList hdr = (NamedList) resp.get("responseHeader");
       Integer batchRf = (Integer)hdr.get(UpdateRequest.REPFACT);
       assertTrue("Expected rf="+expectedRf+" for batch but got "+
         batchRf+"; clusterState: "+printClusterStateInfo(), batchRf == expectedRf);      
-    } finally {
-      if (solrServer != null)
-        solrServer.shutdown();
     }
   }
     

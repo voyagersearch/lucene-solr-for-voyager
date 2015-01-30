@@ -17,17 +17,18 @@ package org.apache.solr.cloud;
  * limitations under the License.
  */
 
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
-import java.util.concurrent.TimeUnit;
-
 import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.apache.solr.SolrTestCaseJ4.SuppressSSL;
 import org.apache.solr.client.solrj.embedded.JettySolrRunner;
 import org.apache.solr.client.solrj.impl.HttpSolrClient;
 import org.apache.solr.client.solrj.request.CollectionAdminRequest;
 import org.apache.solr.common.cloud.Replica;
+import org.junit.Test;
+
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Tests leader-initiated recovery scenarios after a leader node fails
@@ -42,8 +43,8 @@ public class LeaderFailoverAfterPartitionTest extends HttpPartitionTest {
   }
 
 
-  @Override
-  public void doTest() throws Exception {
+  @Test
+  public void test() throws Exception {
     waitForThingsToLevelOut(30000);
 
     // kill a leader and make sure recovery occurs as expected
@@ -112,17 +113,12 @@ public class LeaderFailoverAfterPartitionTest extends HttpPartitionTest {
     // doc should be on leader and 1 replica
     sendDoc(5);
     
-    HttpSolrClient server = getHttpSolrClient(leader, testCollectionName);
-    try {
+    try (HttpSolrClient server = getHttpSolrClient(leader, testCollectionName)) {
       assertDocExists(server, testCollectionName, "5");
-    } finally {
-      server.shutdown();
     }
-    try {
-      server = getHttpSolrClient(notLeaders.get(1), testCollectionName);
+
+    try (HttpSolrClient server = getHttpSolrClient(notLeaders.get(1), testCollectionName)) {
       assertDocExists(server, testCollectionName, "5");
-    } finally {
-      server.shutdown();
     }
   
     Thread.sleep(sleepMsBeforeHealPartition);

@@ -366,6 +366,11 @@ API Changes
   Weight.scoresDocsOutOfOrder and LeafCollector.acceptsDocsOutOfOrder have been
   removed and boolean queries now always score in order.
 
+* LUCENE-6212: IndexWriter no longer accepts per-document Analyzer to
+  add/updateDocument.  These methods were trappy as they made it
+  easy to accidentally index tokens that were not easily
+  searchable. (Mike McCandless)
+
 Bug Fixes
 
 * LUCENE-5650: Enforce read-only access to any path outside the temporary
@@ -467,6 +472,15 @@ Bug Fixes
   
 * LUCENE-6192: Fix int overflow corruption case in skip data for
   high frequency terms in extremely large indices (Robert Muir, Mike
+  McCandless)
+
+* LUCENE-6093: Don't throw NullPointerException from
+  BlendedInfixSuggester for lookups that do not end in a prefix
+  token.  (jane chang via Mike McCandless)
+
+* LUCENE-6214: Fixed IndexWriter deadlock when one thread is
+  committing while another opens a near-real-time reader and an
+  unrecoverable (tragic) exception is hit.  (Simon Willnauer, Mike
   McCandless)
 
 Documentation

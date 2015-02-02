@@ -412,8 +412,8 @@ public class IndexWriter implements Closeable, TwoPhaseCommit, Accountable {
      */
     boolean success2 = false;
     try {
+      boolean success = false;
       synchronized (fullFlushLock) {
-        boolean success = false;
         try {
           anyChanges = docWriter.flushAllThreads();
           if (!anyChanges) {
@@ -421,7 +421,6 @@ public class IndexWriter implements Closeable, TwoPhaseCommit, Accountable {
             // if we flushed anything.
             flushCount.incrementAndGet();
           }
-          success = true;
           // Prevent segmentInfos from changing while opening the
           // reader; in theory we could instead do similar retry logic,
           // just like we do when loading segments_N
@@ -432,21 +431,17 @@ public class IndexWriter implements Closeable, TwoPhaseCommit, Accountable {
               infoStream.message("IW", "return reader version=" + r.getVersion() + " reader=" + r);
             }
           }
-        } catch (AbortingException | OutOfMemoryError tragedy) {
-          tragicEvent(tragedy, "getReader");
-          // never reached but javac disagrees:
-          return null;
+          success = true;
         } finally {
-          if (!success) {
+          // Done: finish the full flush!
+          docWriter.finishFullFlush(this, success);
+          if (success) {
+            processEvents(false, true);
+            doAfterFlush();
+          } else {
             if (infoStream.isEnabled("IW")) {
               infoStream.message("IW", "hit exception during NRT reader");
             }
-          }
-          if (tragedy == null) {
-            // Done: finish the full flush! (unless we hit OOM or something)
-            docWriter.finishFullFlush(success);
-            processEvents(false, true);
-            doAfterFlush();
           }
         }
       }
@@ -457,6 +452,10 @@ public class IndexWriter implements Closeable, TwoPhaseCommit, Accountable {
         infoStream.message("IW", "getReader took " + (System.currentTimeMillis() - tStart) + " msec");
       }
       success2 = true;
+    } catch (AbortingException | OutOfMemoryError tragedy) {
+      tragicEvent(tragedy, "getReader");
+      // never reached but javac disagrees:
+      return null;
     } finally {
       if (!success2) {
         IOUtils.closeWhileHandlingException(r);
@@ -643,6 +642,9 @@ public class IndexWriter implements Closeable, TwoPhaseCommit, Accountable {
      * {@link #release(ReadersAndUpdates)}.
      */
     public synchronized ReadersAndUpdates get(SegmentCommitInfo info, boolean create) {
+
+      // Make sure no new readers can be opened if another thread just closed us:
+      ensureOpen(false);
 
       assert info.info.dir == directory: "info.dir=" + info.info.dir + " vs " + directory;
 
@@ -1132,22 +1134,7 @@ public class IndexWriter implements Closeable, TwoPhaseCommit, Accountable {
    * @throws IOException if there is a low-level IO error
    */
   public void addDocument(Iterable<? extends IndexableField> doc) throws IOException {
-    addDocument(doc, analyzer);
-  }
-
-  /**
-   * Adds a document to this index, using the provided analyzer instead of the
-   * value of {@link #getAnalyzer()}.
-   *
-   * <p>See {@link #addDocument(Iterable)} for details on
-   * index and IndexWriter state after an Exception, and
-   * flushing/merging temporary free space requirements.</p>
-   *
-   * @throws CorruptIndexException if the index is corrupt
-   * @throws IOException if there is a low-level IO error
-   */
-  public void addDocument(Iterable<? extends IndexableField> doc, Analyzer analyzer) throws IOException {
-    updateDocument(null, doc, analyzer);
+    updateDocument(null, doc);
   }
 
   /**
@@ -1188,22 +1175,7 @@ public class IndexWriter implements Closeable, TwoPhaseCommit, Accountable {
    * @lucene.experimental
    */
   public void addDocuments(Iterable<? extends Iterable<? extends IndexableField>> docs) throws IOException {
-    addDocuments(docs, analyzer);
-  }
-
-  /**
-   * Atomically adds a block of documents, analyzed using the
-   * provided analyzer, with sequentially assigned document
-   * IDs, such that an external reader will see all or none
-   * of the documents. 
-   *
-   * @throws CorruptIndexException if the index is corrupt
-   * @throws IOException if there is a low-level IO error
-   *
-   * @lucene.experimental
-   */
-  public void addDocuments(Iterable<? extends Iterable<? extends IndexableField>> docs, Analyzer analyzer) throws IOException {
-    updateDocuments(null, docs, analyzer);
+    updateDocuments(null, docs);
   }
 
   /**
@@ -1220,24 +1192,6 @@ public class IndexWriter implements Closeable, TwoPhaseCommit, Accountable {
    * @lucene.experimental
    */
   public void updateDocuments(Term delTerm, Iterable<? extends Iterable<? extends IndexableField>> docs) throws IOException {
-    updateDocuments(delTerm, docs, analyzer);
-  }
-
-  /**
-   * Atomically deletes documents matching the provided
-   * delTerm and adds a block of documents, analyzed  using
-   * the provided analyzer, with sequentially
-   * assigned document IDs, such that an external reader
-   * will see all or none of the documents. 
-   *
-   * See {@link #addDocuments(Iterable)}.
-   *
-   * @throws CorruptIndexException if the index is corrupt
-   * @throws IOException if there is a low-level IO error
-   *
-   * @lucene.experimental
-   */
-  public void updateDocuments(Term delTerm, Iterable<? extends Iterable<? extends IndexableField>> docs, Analyzer analyzer) throws IOException {
     ensureOpen();
     try {
       boolean success = false;
@@ -1388,26 +1342,6 @@ public class IndexWriter implements Closeable, TwoPhaseCommit, Accountable {
    * @throws IOException if there is a low-level IO error
    */
   public void updateDocument(Term term, Iterable<? extends IndexableField> doc) throws IOException {
-    ensureOpen();
-    updateDocument(term, doc, analyzer);
-  }
-
-  /**
-   * Updates a document by first deleting the document(s)
-   * containing <code>term</code> and then adding the new
-   * document.  The delete and then add are atomic as seen
-   * by a reader on the same index (flush may happen only after
-   * the add).
-   *
-   * @param term the term to identify the document(s) to be
-   * deleted
-   * @param doc the document to be added
-   * @param analyzer the analyzer to use when analyzing the document
-   * @throws CorruptIndexException if the index is corrupt
-   * @throws IOException if there is a low-level IO error
-   */
-  public void updateDocument(Term term, Iterable<? extends IndexableField> doc, Analyzer analyzer)
-      throws IOException {
     ensureOpen();
     try {
       boolean success = false;
@@ -2115,17 +2049,17 @@ public class IndexWriter implements Closeable, TwoPhaseCommit, Accountable {
     /* hold the full flush lock to prevent concurrency commits / NRT reopens to
      * get in our way and do unnecessary work. -- if we don't lock this here we might
      * get in trouble if */
-    synchronized (fullFlushLock) { 
-      /*
-       * We first abort and trash everything we have in-memory
-       * and keep the thread-states locked, the lockAndAbortAll operation
-       * also guarantees "point in time semantics" ie. the checkpoint that we need in terms
-       * of logical happens-before relationship in the DW. So we do
-       * abort all in memory structures 
-       * We also drop global field numbering before during abort to make
-       * sure it's just like a fresh index.
-       */
-      try {
+    /*
+     * We first abort and trash everything we have in-memory
+     * and keep the thread-states locked, the lockAndAbortAll operation
+     * also guarantees "point in time semantics" ie. the checkpoint that we need in terms
+     * of logical happens-before relationship in the DW. So we do
+     * abort all in memory structures 
+     * We also drop global field numbering before during abort to make
+     * sure it's just like a fresh index.
+     */
+    try {
+      synchronized (fullFlushLock) { 
         docWriter.lockAndAbortAll(this);
         processEvents(false, true);
         synchronized (this) {
@@ -2150,6 +2084,7 @@ public class IndexWriter implements Closeable, TwoPhaseCommit, Accountable {
             globalFieldNumberMap.clear();
             success = true;
           } finally {
+            docWriter.unlockAllAfterAbortAll(this);
             if (!success) {
               if (infoStream.isEnabled("IW")) {
                 infoStream.message("IW", "hit exception during deleteAll");
@@ -2157,11 +2092,9 @@ public class IndexWriter implements Closeable, TwoPhaseCommit, Accountable {
             }
           }
         }
-      } catch (OutOfMemoryError oom) {
-        tragicEvent(oom, "deleteAll");
-      } finally {
-        docWriter.unlockAllAfterAbortAll(this);
       }
+    } catch (OutOfMemoryError oom) {
+      tragicEvent(oom, "deleteAll");
     }
   }
 
@@ -2772,7 +2705,7 @@ public class IndexWriter implements Closeable, TwoPhaseCommit, Accountable {
               }
             }
             // Done: finish the full flush!
-            docWriter.finishFullFlush(flushSuccess);
+            docWriter.finishFullFlush(this, flushSuccess);
             doAfterFlush();
           }
         }
@@ -3017,16 +2950,16 @@ public class IndexWriter implements Closeable, TwoPhaseCommit, Accountable {
       boolean anyChanges = false;
       
       synchronized (fullFlushLock) {
-      boolean flushSuccess = false;
+        boolean flushSuccess = false;
         try {
           anyChanges = docWriter.flushAllThreads();
           if (!anyChanges) {
             // flushCount is incremented in flushAllThreads
             flushCount.incrementAndGet();
-        }
+          }
           flushSuccess = true;
         } finally {
-          docWriter.finishFullFlush(flushSuccess);
+          docWriter.finishFullFlush(this, flushSuccess);
           processEvents(false, true);
         }
       }

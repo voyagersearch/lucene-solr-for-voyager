@@ -5,6 +5,11 @@ http://s.apache.org/luceneversions
 
 ======================= Lucene 5.1.0 =======================
 
+Bug Fixes
+
+* Spatial pointsOnly flag on PrefixTreeStrategy shouldn't switch all predicates to
+  Intersects. (David Smiley)
+
 Optimizations
 
 * LUCENE-6183, LUCENE-5647: Avoid recompressing stored fields
@@ -544,6 +549,9 @@ Other
   (Adrien Grand, Robert Muir)
 
 * LUCENE-5915: Remove Pulsing postings format. (Robert Muir)
+
+* LUCENE-6213: Add useful exception message when commit contains segments from legacy codecs.
+  (Ryan Ernst)
 
 ======================= Lucene 4.10.4 ======================
 

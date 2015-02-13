@@ -531,7 +531,7 @@ public class TestIndexWriterExceptions extends LuceneTestCase {
 
     // Make sure the doc that hit the exception was marked
     // as deleted:
-    DocsEnum tdocs = TestUtil.docs(random(), reader,
+    PostingsEnum tdocs = TestUtil.docs(random(), reader,
         t.field(),
         new BytesRef(t.text()),
         MultiFields.getLiveDocs(reader),
@@ -1521,6 +1521,7 @@ public class TestIndexWriterExceptions extends LuceneTestCase {
       iw.addDocument(doc);
       fail("didn't get expected exception");
     } catch (IllegalArgumentException expected) {}
+    assertNull(iw.getTragicException());
     iw.close();
     // make sure we see our good doc
     DirectoryReader r = DirectoryReader.open(dir);
@@ -1545,6 +1546,7 @@ public class TestIndexWriterExceptions extends LuceneTestCase {
       iw.addDocument(doc);
       fail("didn't get expected exception");
     } catch (IllegalArgumentException expected) {}
+    assertNull(iw.getTragicException());
     iw.close();
     // make sure we see our good doc
     DirectoryReader r = DirectoryReader.open(dir);
@@ -1570,6 +1572,7 @@ public class TestIndexWriterExceptions extends LuceneTestCase {
       iw.addDocument(doc);
       fail("didn't get expected exception");
     } catch (NullPointerException expected) {}
+    assertNull(iw.getTragicException());
     iw.close();
     // make sure we see our good doc
     DirectoryReader r = DirectoryReader.open(dir);
@@ -1595,6 +1598,7 @@ public class TestIndexWriterExceptions extends LuceneTestCase {
       iw.addDocument(doc);
       fail("didn't get expected exception");
     } catch (NullPointerException expected) {}
+    assertNull(iw.getTragicException());
     iw.close();
     // make sure we see our good doc
     DirectoryReader r = DirectoryReader.open(dir);
@@ -1620,6 +1624,7 @@ public class TestIndexWriterExceptions extends LuceneTestCase {
       iw.addDocument(doc);
       fail("didn't get expected exception");
     } catch (IllegalArgumentException expected) {}
+    assertNull(iw.getTragicException());
     iw.close();
     // make sure we see our good doc
     DirectoryReader r = DirectoryReader.open(dir);
@@ -1645,6 +1650,7 @@ public class TestIndexWriterExceptions extends LuceneTestCase {
       iw.addDocument(doc);
       fail("didn't get expected exception");
     } catch (IllegalArgumentException expected) {}
+    assertNull(iw.getTragicException());
     iw.close();
     // make sure we see our good doc
     DirectoryReader r = DirectoryReader.open(dir);
@@ -1676,6 +1682,7 @@ public class TestIndexWriterExceptions extends LuceneTestCase {
       iw.addDocument(doc);
       fail("didn't get expected exception");
     } catch (IllegalArgumentException expected) {}
+    assertNull(iw.getTragicException());
     iw.close();
 
     // make sure we see our good doc

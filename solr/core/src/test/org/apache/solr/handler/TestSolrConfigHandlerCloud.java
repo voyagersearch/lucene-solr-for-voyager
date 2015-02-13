@@ -46,7 +46,6 @@ import org.slf4j.LoggerFactory;
 import static java.util.Arrays.asList;
 import static org.apache.solr.handler.TestBlobHandler.getAsString;
 
-@BadApple(bugUrl = "https://issues.apache.org/jira/browse/SOLR-6924")
 public class TestSolrConfigHandlerCloud extends AbstractFullDistribZkTestBase {
   static final Logger log =  LoggerFactory.getLogger(TestSolrConfigHandlerCloud.class);
   private List<RestTestHarness> restTestHarnesses = new ArrayList<>();

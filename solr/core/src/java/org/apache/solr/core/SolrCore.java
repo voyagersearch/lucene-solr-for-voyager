@@ -162,7 +162,8 @@ public final class SolrCore implements SolrInfoMBean, Closeable {
   public static Map<SolrCore,Exception> openHandles = Collections.synchronizedMap(new IdentityHashMap<SolrCore, Exception>());
 
   
-  public static Logger log = LoggerFactory.getLogger(SolrCore.class);
+  public static final Logger log = LoggerFactory.getLogger(SolrCore.class);
+  public static final Logger requestLog = LoggerFactory.getLogger(SolrCore.class.getName() + ".Request");
 
   private String name;
   private String logid; // used to show what name is set
@@ -553,20 +554,35 @@ public final class SolrCore implements SolrInfoMBean, Closeable {
    *@throws SolrException if the object could not be instantiated
    */
   private <T> T createInstance(String className, Class<T> cast, String msg) {
+    return createInstance(className,cast,msg, this);
+  }
+
+  /**
+   * Creates an instance by trying a constructor that accepts a SolrCore before
+   * trying the default (no arg) constructor.
+   *
+   * @param className the instance class to create
+   * @param cast      the class or interface that the instance should extend or implement
+   * @param msg       a message helping compose the exception error if any occurs.
+   * @param core      The SolrCore instance for which this object needs to be loaded
+   * @return the desired instance
+   * @throws SolrException if the object could not be instantiated
+   */
+  public static <T> T createInstance(String className, Class<T> cast, String msg, SolrCore core) {
     Class<? extends T> clazz = null;
     if (msg == null) msg = "SolrCore Object";
     try {
-        clazz = getResourceLoader().findClass(className, cast);
-        //most of the classes do not have constructors which takes SolrCore argument. It is recommended to obtain SolrCore by implementing SolrCoreAware.
-        // So invariably always it will cause a  NoSuchMethodException. So iterate though the list of available constructors
-        Constructor<?>[] cons =  clazz.getConstructors();
-        for (Constructor<?> con : cons) {
-          Class<?>[] types = con.getParameterTypes();
-          if(types.length == 1 && types[0] == SolrCore.class){
-            return cast.cast(con.newInstance(this));
-          }
+      clazz = core.getResourceLoader().findClass(className, cast);
+      //most of the classes do not have constructors which takes SolrCore argument. It is recommended to obtain SolrCore by implementing SolrCoreAware.
+      // So invariably always it will cause a  NoSuchMethodException. So iterate though the list of available constructors
+      Constructor<?>[] cons = clazz.getConstructors();
+      for (Constructor<?> con : cons) {
+        Class<?>[] types = con.getParameterTypes();
+        if (types.length == 1 && types[0] == SolrCore.class) {
+          return cast.cast(con.newInstance(core));
         }
-        return getResourceLoader().newInstance(className, cast);//use the empty constructor
+      }
+      return core.getResourceLoader().newInstance(className, cast);//use the empty constructor
     } catch (SolrException e) {
       throw e;
     } catch (Exception e) {
@@ -577,7 +593,7 @@ public final class SolrCore implements SolrInfoMBean, Closeable {
         throw inner;
       }
 
-      throw new SolrException(SolrException.ErrorCode.SERVER_ERROR,"Error Instantiating "+msg+", "+className+ " failed to instantiate " +cast.getName(), e);
+      throw new SolrException(SolrException.ErrorCode.SERVER_ERROR, "Error Instantiating " + msg + ", " + className + " failed to instantiate " + cast.getName(), e);
     }
   }
   
@@ -1049,14 +1065,13 @@ public final class SolrCore implements SolrInfoMBean, Closeable {
    *   <li>all CloseHooks will be notified</li>
    *   <li>All MBeans will be unregistered from MBeanServer if JMX was enabled
    *       </li>
-   * </ul>
-   * <p>   
+   * </ul> 
    * <p>
    * The behavior of this method is determined by the result of decrementing
    * the core's reference count (A core is created with a reference count of 1)...
    * </p>
    * <ul>
-   *   <li>If reference count is > 0, the usage count is decreased by 1 and no
+   *   <li>If reference count is &gt; 0, the usage count is decreased by 1 and no
    *       resources are released.
    *   </li>
    *   <li>If reference count is == 0, the resources are released.
@@ -1998,9 +2013,9 @@ public final class SolrCore implements SolrInfoMBean, Closeable {
 
     preDecorateResponse(req, rsp);
 
-    if (log.isDebugEnabled() && rsp.getToLog().size() > 0) {
+    if (requestLog.isDebugEnabled() && rsp.getToLog().size() > 0) {
       // log request at debug in case something goes wrong and we aren't able to log later
-      log.debug(rsp.getToLogAsString(logid));
+      requestLog.debug(rsp.getToLogAsString(logid));
     }
 
     // TODO: this doesn't seem to be working correctly and causes problems with the example server and distrib (for example /spell)
@@ -2012,8 +2027,8 @@ public final class SolrCore implements SolrInfoMBean, Closeable {
     postDecorateResponse(handler, req, rsp);
 
     if (rsp.getToLog().size() > 0) {
-      if (log.isInfoEnabled()) {
-        log.info(rsp.getToLogAsString(logid));
+      if (requestLog.isInfoEnabled()) {
+        requestLog.info(rsp.getToLogAsString(logid));
       }
 
       if (log.isWarnEnabled()) {
@@ -2632,9 +2647,9 @@ public final class SolrCore implements SolrInfoMBean, Closeable {
    * to 'touch' the /conf directory by setting some data  so that events are triggered.
    */
   private void registerConfListener() {
-    if( ! (resourceLoader instanceof ZkSolrResourceLoader)) return;
+    if (!(resourceLoader instanceof ZkSolrResourceLoader)) return;
     final ZkSolrResourceLoader zkSolrResourceLoader = (ZkSolrResourceLoader) resourceLoader;
-    if(zkSolrResourceLoader != null)
+    if (zkSolrResourceLoader != null)
       zkSolrResourceLoader.getZkController().registerConfListenerForCore(
           zkSolrResourceLoader.getConfigSetZkPath(),
           this,
@@ -2672,7 +2687,7 @@ public final class SolrCore implements SolrInfoMBean, Closeable {
 
         }
         if (cfg != null) {
-          cfg.refreshRequestParams() ;
+          cfg.refreshRequestParams();
         }
         if (checkStale(zkClient, overlayPath, solrConfigversion) ||
             checkStale(zkClient, solrConfigPath, overlayVersion) ||

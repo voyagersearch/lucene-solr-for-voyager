@@ -13,7 +13,7 @@ See http://lucene.apache.org/solr for more information.
 * SOLR-6902: Use JUnit rules instead of inheritance with distributed Solr 
   tests to allow for multiple tests without the same class.
   (Ramkumar Aiyengar, Erick Erickson, Mike McCandless)
-  
+
 ==================  5.1.0 ==================
 
 Consult the LUCENE_CHANGES.txt file for additional, low level, changes in this release
@@ -45,11 +45,51 @@ New Features
   deprecated in favour of close(). (Mark Miller, Tomás Fernández Löbbe, Alan
   Woodward)
 
+* SOLR-4905: Allow fromIndex parameter to JoinQParserPlugin to refer to a single-sharded
+  collection that has a replica on all nodes where there is a replica in the to index
+  (Jack Lo, Timothy Potter)
+
+* SOLR-6648: Add support in AnalyzingInfixLookupFactory and BlendedInfixLookupFactory 
+  for setting 'highlight' and 'allTermsRequired' in the suggester configuration.
+  (Boon Low, Varun Thacker via Tomás Fernández Löbbe)
+
+* SOLR-7083: Support managing all named components in solrconfig such as
+  requestHandler, queryParser, queryResponseWriter, valueSourceParser,
+  transformer, queryConverter (Noble Paul)
+
+* SOLR-7005: Spatial 2D heatmap faceting on RPT fields via new facet.heatmap with PNG and
+  2D int array formats. (David Smiley)
+
+* SOLR-7019: Support changing field key when using interval faceting. 
+  (Tomás Fernández Löbbe)
+
 Bug Fixes
 ----------------------
 
 * SOLR-7046: NullPointerException when group.function uses query() function.
   (Jim Musil via Erick Erickson)
+
+* SOLR-7072: Multiple mlt.fl does not work. (Constantin Mitocaru, shalin)
+
+* SOLR-6775: Creating backup snapshot results in null pointer exception.
+  (Ryan Hesson, Varun Thacker via shalin)
+
+* SOLR-5890: Delete silently fails if not sent to shard where document was
+  added (Ishan Chattopadhyaya, Noble Paul)
+
+* SOLR-7101: JmxMonitoredMap can throw an exception in clear when queryNames fails.
+  (Mark Miller, Wolfgang Hoschek)
+
+* SOLR-6214: Snapshots numberToKeep param only keeps n-1 backups.
+  (Mathias H., Ramana, Varun Thacker via shalin)
+
+* SOLR-7084: FreeTextSuggester: Better error message when doing a lookup
+  during dictionary build. Used to be nullpointer (janhoy)
+
+Optimizations
+----------------------
+ * SOLR-7049: Move work done by the LIST Collections API call to the Collections
+   Handler (Varun Thacker via Anshum Gupta).
 
 Other Changes
 ----------------------
@@ -58,6 +98,14 @@ Other Changes
 
 * SOLR-6500: Refactor FileFetcher in SnapPuller, add debug logging. 
   (Ramkumar Aiyengar via Mark Miller)
+
+* SOLR-7076: In DIH, TikaEntityProcessor should have support for onError=skip
+  (Noble Paul)
+
+* SOLR-7094: Better error reporting of JSON parse issues when indexing docs
+  (Ishan Chattopadhyaya via Timothy Potter)
+
+* SOLR-7103: Remove unused method params in faceting code. (shalin)
 
 ==================  5.0.0 ==================
 
@@ -70,6 +118,11 @@ Carrot2 3.9.0
 Velocity 1.7 and Velocity Tools 2.0
 Apache UIMA 2.3.1
 Apache ZooKeeper 3.4.6
+
+NOTE: Solr 5.0 only supports creating and removing SolrCloud collections through
+      the collections API, unlike previous versions. While not using the 
+      collections API may still work in 5.0, it is unsupported, not recommended,
+      and the behavior will change in a 5.x release.
 
 Upgrading from Solr 4.x
 ----------------------
@@ -531,6 +584,28 @@ Bug Fixes
 * SOLR-7068: Collapse on numeric field breaks when min/max values are negative. 
   (Joel Bernstein)
 
+* SOLR-6780: Fixed a bug in how default/appends/invariants params were affecting the set 
+  of all "keys" found in the request parameters, resulting in some key=value param pairs 
+  being duplicated.  This was noticeably affecting some areas of the code where iteration 
+  was done over the set of all params: 
+    * literal.* in ExtractingRequestHandler
+    * facet.* in FacetComponent
+    * spellcheck.[dictionary name].* and spellcheck.collateParam.* in SpellCheckComponent
+    * olap.* in AnalyticsComponent
+  (Alexandre Rafalovitch & hossman)
+
+* SOLR-6920: A replicated index can end up corrupted when small files end up with the same 
+  file name and size. (Varun Thacker, Mark Miller)
+
+* SOLR-7033, SOLR-5961: RecoveryStrategy should not publish any state when
+  closed / cancelled and there should always be a pause between recoveries 
+  even when recoveries are rapidly stopped and started as well as when a
+  node attempts to become the leader for a shard. 
+  (Mark Miller, Maxim Novikov)
+
+* SOLR-6693: bin\solr.cmd doesn't support 32-bit JRE/JDK running on Windows due to 
+  parenthesis in JAVA_HOME. (Timothy Potter, Christopher Hewitt, Jan Høydahl)
+
 Optimizations
 ----------------------
 
@@ -804,7 +879,10 @@ Other Changes
 
 * SOLR-7020: 'bin/solr start' should automatically use an SSL-enabled alternate jetty
   configuration file when in SSL mode, eliminating the need for manual jetty.xml edits.
-  (Steve Rowe) 
+  (Steve Rowe)
+
+* SOLR-6227: Avoid spurious failures of ChaosMonkeySafeLeaderTest by ensuring there's
+  at least one jetty to kill. (shalin)
 
 ==================  4.10.3 ==================
 
@@ -828,16 +906,6 @@ Bug Fixes
 
 * SOLR-6510: The collapse QParser would throw a NPE when used on a DocValues field on
   an empty segment/index. (Christine Poerschke, David Smiley)
-
-* SOLR-6780: Fixed a bug in how default/appends/invariants params were affecting the set 
-  of all "keys" found in the request parameters, resulting in some key=value param pairs 
-  being duplicated.  This was noticeably affecting some areas of the code where iteration 
-  was done over the set of all params: 
-    * literal.* in ExtractingRequestHandler
-    * facet.* in FacetComponent
-    * spellcheck.[dictionary name].* and spellcheck.collateParam.* in SpellCheckComponent
-    * olap.* in AnalyticsComponent
-  (Alexandre Rafalovitch & hossman)
 
 * SOLR-2927: Solr does not unregister all mbeans upon exception in constructor
   causing memory leaks. (tom liu, Sharath Babu, Cyrille Roy, shalin)

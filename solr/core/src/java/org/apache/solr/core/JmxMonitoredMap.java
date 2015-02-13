@@ -40,7 +40,6 @@ import java.util.concurrent.ConcurrentHashMap;
  * Responsible for finding (or creating) a MBeanServer from given configuration
  * and registering all SolrInfoMBean objects with JMX.
  * </p>
- * <p/>
  * <p>
  * Please see http://wiki.apache.org/solr/SolrJmx for instructions on usage and configuration
  * </p>
@@ -118,13 +117,20 @@ public class JmxMonitoredMap<K, V> extends
   public void clear() {
     if (server != null) {
       QueryExp exp = Query.eq(Query.attr("coreHashCode"), Query.value(coreHashCode));
-      Set<ObjectName> objectNames = server.queryNames(null, exp);
+      
+      Set<ObjectName> objectNames = null;
+      try {
+        objectNames = server.queryNames(null, exp);
+      } catch (Exception e) {
+        LOG.warn("Exception querying for mbeans", e);
+      }
+      
       if (objectNames != null)  {
         for (ObjectName name : objectNames) {
           try {
             server.unregisterMBean(name);
           } catch (Exception e) {
-            LOG.error("Exception un-registering mbean {}", name, e);
+            LOG.warn("Exception un-registering mbean {}", name, e);
           }
         }
       }

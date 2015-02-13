@@ -17,6 +17,7 @@
 
 package org.apache.solr.client.solrj.embedded;
 
+import org.apache.solr.servlet.LoadAdminUiServlet;
 import org.apache.solr.servlet.SolrDispatchFilter;
 import org.eclipse.jetty.server.Connector;
 import org.eclipse.jetty.server.Server;
@@ -27,6 +28,7 @@ import org.eclipse.jetty.server.session.HashSessionIdManager;
 import org.eclipse.jetty.server.ssl.SslConnector;
 import org.eclipse.jetty.server.ssl.SslSelectChannelConnector;
 import org.eclipse.jetty.server.ssl.SslSocketConnector;
+import org.eclipse.jetty.servlet.DefaultServlet;
 import org.eclipse.jetty.servlet.FilterHolder;
 import org.eclipse.jetty.servlet.ServletContextHandler;
 import org.eclipse.jetty.servlet.ServletHolder;
@@ -45,6 +47,8 @@ import javax.servlet.ServletResponse;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+
+import java.io.File;
 import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URL;
@@ -343,6 +347,22 @@ public class JettySolrRunner {
       }
     });
 
+
+    // Host the solr admin interface
+    String[] check = new String[] {
+        "..", "../..", "../../.."
+    };
+    for(String c : check ) {
+      File f = new File(c+"/webapp/web/admin.html");
+      if(f.exists()) {
+        root.setResourceBase(f.getParentFile().getAbsolutePath());
+        root.setWelcomeFiles(new String[]{"index.html"});
+        root.addServlet(LoadAdminUiServlet.class, "/admin.html");
+        root.addServlet(DefaultServlet.class, "/*");
+        return;
+      }      
+    }
+    
     // for some reason, there must be a servlet for this to get applied
     root.addServlet(Servlet404.class, "/*");
 

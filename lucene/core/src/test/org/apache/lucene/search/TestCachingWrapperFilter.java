@@ -71,16 +71,16 @@ public class TestCachingWrapperFilter extends LuceneTestCase {
     IOUtils.close(ir, dir);
     super.tearDown();
   }
-  
+
   private void assertFilterEquals(Filter f1, Filter f2) throws Exception {
     Query query = new MatchAllDocsQuery();
-    TopDocs hits1 = is.search(query, f1, ir.maxDoc());
-    TopDocs hits2 = is.search(query, f2, ir.maxDoc());
+    TopDocs hits1 = is.search(new FilteredQuery(query, f1), ir.maxDoc());
+    TopDocs hits2 = is.search(new FilteredQuery(query, f2), ir.maxDoc());
     assertEquals(hits1.totalHits, hits2.totalHits);
     CheckHits.checkEqual(query, hits1.scoreDocs, hits2.scoreDocs);
     // now do it again to confirm caching works
-    TopDocs hits3 = is.search(query, f1, ir.maxDoc());
-    TopDocs hits4 = is.search(query, f2, ir.maxDoc());
+    TopDocs hits3 = is.search(new FilteredQuery(query, f1), ir.maxDoc());
+    TopDocs hits4 = is.search(new FilteredQuery(query, f2), ir.maxDoc());
     assertEquals(hits3.totalHits, hits4.totalHits);
     CheckHits.checkEqual(query, hits3.scoreDocs, hits4.scoreDocs);
   }
@@ -181,6 +181,10 @@ public class TestCachingWrapperFilter extends LuceneTestCase {
       public DocIdSet getDocIdSet(LeafReaderContext context, Bits acceptDocs) {
         return null;
       }
+      @Override
+      public String toString(String field) {
+        return "nullDocIdSetFilter";
+      }
     };
     CachingWrapperFilter cacher = new CachingWrapperFilter(filter, MAYBE_CACHE_POLICY);
 
@@ -213,6 +217,10 @@ public class TestCachingWrapperFilter extends LuceneTestCase {
             return 0L;
           }
         };
+      }
+      @Override
+      public String toString(String field) {
+        return "nullDocIdSetIteratorFilter";
       }
     };
     CachingWrapperFilter cacher = new CachingWrapperFilter(filter, FilterCachingPolicy.ALWAYS_CACHE);
@@ -260,12 +268,16 @@ public class TestCachingWrapperFilter extends LuceneTestCase {
     // returns default empty docidset, always cacheable:
     assertDocIdSetCacheable(reader, NumericRangeFilter.newIntRange("test", Integer.valueOf(10000), Integer.valueOf(-10000), true, true), true);
     // is cacheable:
-    assertDocIdSetCacheable(reader, DocValuesRangeFilter.newIntRange("test", Integer.valueOf(10), Integer.valueOf(20), true, true), false);
+    assertDocIdSetCacheable(reader, NumericRangeFilter.newIntRange("test", 10, 20, true, true), false);
     // a fixedbitset filter is always cacheable
     assertDocIdSetCacheable(reader, new Filter() {
       @Override
       public DocIdSet getDocIdSet(LeafReaderContext context, Bits acceptDocs) {
         return new BitDocIdSet(new FixedBitSet(context.reader().maxDoc()));
+      }
+      @Override
+      public String toString(String field) {
+        return "cacheableFilter";
       }
     }, true);
 
@@ -307,7 +319,7 @@ public class TestCachingWrapperFilter extends LuceneTestCase {
 
     CachingWrapperFilter filter = new CachingWrapperFilter(startFilter, FilterCachingPolicy.ALWAYS_CACHE);
 
-    docs = searcher.search(new MatchAllDocsQuery(), filter, 1);
+    docs = searcher.search(new FilteredQuery(new MatchAllDocsQuery(), filter), 1);
     assertTrue(filter.ramBytesUsed() > 0);
 
     assertEquals("[query + filter] Should find a hit...", 1, docs.totalHits);
@@ -344,7 +356,7 @@ public class TestCachingWrapperFilter extends LuceneTestCase {
     searcher = newSearcher(reader, false);
 
     missCount = filter.missCount;
-    docs = searcher.search(new MatchAllDocsQuery(), filter, 1);
+    docs = searcher.search(new FilteredQuery(new MatchAllDocsQuery(), filter), 1);
     assertEquals("[query + filter] Should *not* find a hit...", 0, docs.totalHits);
 
     // cache hit
@@ -358,7 +370,7 @@ public class TestCachingWrapperFilter extends LuceneTestCase {
     reader = refreshReader(reader);
     searcher = newSearcher(reader, false);
 
-    docs = searcher.search(new MatchAllDocsQuery(), filter, 1);
+    docs = searcher.search(new FilteredQuery(new MatchAllDocsQuery(), filter), 1);
     assertEquals("[query + filter] Should find a hit...", 1, docs.totalHits);
     missCount = filter.missCount;
     assertTrue(missCount > 0);
@@ -377,7 +389,7 @@ public class TestCachingWrapperFilter extends LuceneTestCase {
     reader = refreshReader(reader);
     searcher = newSearcher(reader, false);
         
-    docs = searcher.search(new MatchAllDocsQuery(), filter, 1);
+    docs = searcher.search(new FilteredQuery(new MatchAllDocsQuery(), filter), 1);
     assertEquals("[query + filter] Should find 2 hits...", 2, docs.totalHits);
     assertTrue(filter.missCount > missCount);
     missCount = filter.missCount;
@@ -393,7 +405,7 @@ public class TestCachingWrapperFilter extends LuceneTestCase {
     reader = refreshReader(reader);
     searcher = newSearcher(reader, false);
 
-    docs = searcher.search(new MatchAllDocsQuery(), filter, 1);
+    docs = searcher.search(new FilteredQuery(new MatchAllDocsQuery(), filter), 1);
     assertEquals("[query + filter] Should *not* find a hit...", 0, docs.totalHits);
     // CWF reused the same entry (it dynamically applied the deletes):
     assertEquals(missCount, filter.missCount);

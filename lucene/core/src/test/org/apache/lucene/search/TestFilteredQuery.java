@@ -25,6 +25,8 @@ import org.apache.lucene.analysis.MockAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedDocValuesField;
+import org.apache.lucene.document.StringField;
+import org.apache.lucene.document.Field.Store;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PostingsEnum;
@@ -113,6 +115,10 @@ public class TestFilteredQuery extends LuceneTestCase {
         if (acceptDocs.get(3)) bitset.set(3);
         return new BitDocIdSet(bitset);
       }
+      @Override
+      public String toString(String field) {
+        return "staticFilterB";
+      }
     };
   }
 
@@ -132,33 +138,33 @@ public class TestFilteredQuery extends LuceneTestCase {
 
   private void tFilteredQuery(final boolean useRandomAccess) throws Exception {
     Query filteredquery = new FilteredQuery(query, filter, randomFilterStrategy(random(), useRandomAccess));
-    ScoreDoc[] hits = searcher.search (filteredquery, null, 1000).scoreDocs;
+    ScoreDoc[] hits = searcher.search (filteredquery, 1000).scoreDocs;
     assertEquals (1, hits.length);
     assertEquals (1, hits[0].doc);
     QueryUtils.check(random(), filteredquery,searcher);
 
-    hits = searcher.search (filteredquery, null, 1000, new Sort(new SortField("sorter", SortField.Type.STRING))).scoreDocs;
+    hits = searcher.search (filteredquery, 1000, new Sort(new SortField("sorter", SortField.Type.STRING))).scoreDocs;
     assertEquals (1, hits.length);
     assertEquals (1, hits[0].doc);
 
     filteredquery = new FilteredQuery(new TermQuery (new Term ("field", "one")), filter, randomFilterStrategy(random(), useRandomAccess));
-    hits = searcher.search (filteredquery, null, 1000).scoreDocs;
+    hits = searcher.search (filteredquery, 1000).scoreDocs;
     assertEquals (2, hits.length);
     QueryUtils.check(random(), filteredquery,searcher);
 
     filteredquery = new FilteredQuery(new MatchAllDocsQuery(), filter, randomFilterStrategy(random(), useRandomAccess));
-    hits = searcher.search (filteredquery, null, 1000).scoreDocs;
+    hits = searcher.search (filteredquery, 1000).scoreDocs;
     assertEquals (2, hits.length);
     QueryUtils.check(random(), filteredquery,searcher);
 
     filteredquery = new FilteredQuery(new TermQuery (new Term ("field", "x")), filter, randomFilterStrategy(random(), useRandomAccess));
-    hits = searcher.search (filteredquery, null, 1000).scoreDocs;
+    hits = searcher.search (filteredquery, 1000).scoreDocs;
     assertEquals (1, hits.length);
     assertEquals (3, hits[0].doc);
     QueryUtils.check(random(), filteredquery,searcher);
 
     filteredquery = new FilteredQuery(new TermQuery (new Term ("field", "y")), filter, randomFilterStrategy(random(), useRandomAccess));
-    hits = searcher.search (filteredquery, null, 1000).scoreDocs;
+    hits = searcher.search (filteredquery, 1000).scoreDocs;
     assertEquals (0, hits.length);
     QueryUtils.check(random(), filteredquery,searcher);
     
@@ -194,6 +200,10 @@ public class TestFilteredQuery extends LuceneTestCase {
         bitset.set(0, Math.min(5, bitset.length()));
         return new BitDocIdSet(bitset);
       }
+      @Override
+      public String toString(String field) {
+        return "staticFilterA";
+      }
     };
   }
   
@@ -201,8 +211,8 @@ public class TestFilteredQuery extends LuceneTestCase {
    * Tests whether the scores of the two queries are the same.
    */
   public void assertScoreEquals(Query q1, Query q2) throws Exception {
-    ScoreDoc[] hits1 = searcher.search (q1, null, 1000).scoreDocs;
-    ScoreDoc[] hits2 = searcher.search (q2, null, 1000).scoreDocs;
+    ScoreDoc[] hits1 = searcher.search (q1, 1000).scoreDocs;
+    ScoreDoc[] hits2 = searcher.search (q2, 1000).scoreDocs;
       
     assertEquals(hits1.length, hits2.length);
     
@@ -225,7 +235,7 @@ public class TestFilteredQuery extends LuceneTestCase {
         "sorter", "b", "d", true, true);
 
     Query filteredquery = new FilteredQuery(rq, filter, randomFilterStrategy(random(), useRandomAccess));
-    ScoreDoc[] hits = searcher.search(filteredquery, null, 1000).scoreDocs;
+    ScoreDoc[] hits = searcher.search(filteredquery, 1000).scoreDocs;
     assertEquals(2, hits.length);
     QueryUtils.check(random(), filteredquery,searcher);
   }
@@ -243,7 +253,7 @@ public class TestFilteredQuery extends LuceneTestCase {
     bq.add(query, BooleanClause.Occur.MUST);
     query = new FilteredQuery(new TermQuery(new Term("field", "one")), new SingleDocTestFilter(1), randomFilterStrategy(random(), useRandomAccess));
     bq.add(query, BooleanClause.Occur.MUST);
-    ScoreDoc[] hits = searcher.search(bq, null, 1000).scoreDocs;
+    ScoreDoc[] hits = searcher.search(bq, 1000).scoreDocs;
     assertEquals(0, hits.length);
     QueryUtils.check(random(), query,searcher);    
   }
@@ -261,7 +271,7 @@ public class TestFilteredQuery extends LuceneTestCase {
     bq.add(query, BooleanClause.Occur.SHOULD);
     query = new FilteredQuery(new TermQuery(new Term("field", "one")), new SingleDocTestFilter(1), randomFilterStrategy(random(), useRandomAccess));
     bq.add(query, BooleanClause.Occur.SHOULD);
-    ScoreDoc[] hits = searcher.search(bq, null, 1000).scoreDocs;
+    ScoreDoc[] hits = searcher.search(bq, 1000).scoreDocs;
     assertEquals(2, hits.length);
     QueryUtils.check(random(), query,searcher);    
   }
@@ -432,7 +442,7 @@ public class TestFilteredQuery extends LuceneTestCase {
               Bits acceptDocs) throws IOException {
             final boolean nullBitset = random().nextInt(10) == 5;
             final LeafReader reader = context.reader();
-            PostingsEnum termPostingsEnum = reader.termDocsEnum(new Term("field", "0"));
+            PostingsEnum termPostingsEnum = reader.postings(new Term("field", "0"));
             if (termPostingsEnum == null) {
               return null; // no docs -- return null
             }
@@ -475,10 +485,14 @@ public class TestFilteredQuery extends LuceneTestCase {
                 assertTrue(
                     "iterator should not be called if bitset is present",
                     nullBitset);
-                return reader.termDocsEnum(new Term("field", "0"));
+                return reader.postings(new Term("field", "0"));
               }
               
             };
+          }
+          @Override
+          public String toString(String field) {
+            return "filterField0";
           }
         }, FilteredQuery.QUERY_FIRST_FILTER_STRATEGY);
     
@@ -526,7 +540,7 @@ public class TestFilteredQuery extends LuceneTestCase {
           }
           @Override
           public DocIdSetIterator iterator() throws IOException {
-            final PostingsEnum termPostingsEnum = context.reader().termDocsEnum(new Term("field", "0"));
+            final PostingsEnum termPostingsEnum = context.reader().postings(new Term("field", "0"));
             if (termPostingsEnum == null) {
               return null;
             }
@@ -559,7 +573,13 @@ public class TestFilteredQuery extends LuceneTestCase {
             };
           }
           
+          
         };
+        
+      }
+      @Override
+      public String toString(String field) {
+        return "filterField0";
       }
         }, queryFirst ? FilteredQuery.LEAP_FROG_QUERY_FIRST_STRATEGY : random()
             .nextBoolean() ? FilteredQuery.RANDOM_ACCESS_FILTER_STRATEGY
@@ -568,6 +588,51 @@ public class TestFilteredQuery extends LuceneTestCase {
     TopDocs search = searcher.search(query, 10);
     assertEquals(totalDocsWithZero, search.totalHits);
     IOUtils.close(reader, directory);
+  }
+
+  public void testPreservesScores() throws IOException {
+    Directory dir = newDirectory();
+    RandomIndexWriter writer = new RandomIndexWriter(random(), dir);
+    Document doc = new Document();
+    doc.add(new StringField("foo", "bar", Store.NO));
+    writer.addDocument(doc);
+    writer.commit();
+    final IndexReader reader = writer.getReader();
+    writer.close();
+    final IndexSearcher searcher = new IndexSearcher(reader);
+    final Query query = new TermQuery(new Term("foo", "bar"));
+    query.setBoost(random().nextFloat());
+    FilteredQuery fq = new FilteredQuery(query, new Filter() {
+      @Override
+      public DocIdSet getDocIdSet(final LeafReaderContext context, Bits acceptDocs)
+          throws IOException {
+        return new DocIdSet() {
+          
+          @Override
+          public long ramBytesUsed() {
+            return 0;
+          }
+          
+          @Override
+          public DocIdSetIterator iterator() throws IOException {
+            return DocIdSetIterator.all(context.reader().maxDoc());
+          }
+        };
+      }
+      @Override
+      public String toString(String field) {
+        return "dummy";
+      }
+    });
+    assertEquals(searcher.search(query, 1).scoreDocs[0].score, searcher.search(fq, 1).scoreDocs[0].score, 0f);
+    fq.setBoost(random().nextFloat());
+    // QueryWrapperFilter has special rewrite rules
+    FilteredQuery fq2 = new FilteredQuery(query, new QueryWrapperFilter(new MatchAllDocsQuery()));
+    fq2.setBoost(fq.getBoost());
+    fq2.setBoost(42);
+    assertEquals(searcher.search(fq, 1).scoreDocs[0].score, searcher.search(fq2, 1).scoreDocs[0].score, 10e-5);
+    reader.close();
+    dir.close();
   }
 }
 

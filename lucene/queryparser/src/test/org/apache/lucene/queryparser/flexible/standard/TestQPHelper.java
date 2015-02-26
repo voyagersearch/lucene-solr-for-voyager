@@ -532,6 +532,12 @@ public class TestQPHelper extends LuceneTestCase {
     assertQueryEquals("term term1 term2", a, "term term1 term2");
   }
 
+  public void testLeadingNegation() throws Exception {
+    assertQueryEquals("-term", null, "-term");
+    assertQueryEquals("!term", null, "-term");
+    assertQueryEquals("NOT term", null, "-term");
+  }
+
   public void testWildcard() throws Exception {
     assertQueryEquals("term*", null, "term*");
     assertQueryEquals("term*^2", null, "term*^2.0");
@@ -1251,7 +1257,7 @@ public class TestQPHelper extends LuceneTestCase {
     qp.setLocale(Locale.ENGLISH);
 
     Query q = qp.parse(query, "date");
-    ScoreDoc[] hits = is.search(q, null, 1000).scoreDocs;
+    ScoreDoc[] hits = is.search(q, 1000).scoreDocs;
     assertEquals(expected, hits.length);
   }
 

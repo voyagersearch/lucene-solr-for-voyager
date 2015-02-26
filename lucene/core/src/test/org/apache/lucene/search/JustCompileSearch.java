@@ -23,7 +23,6 @@ import org.apache.lucene.index.FieldInvertState;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PriorityQueue;
 
 /**
@@ -137,6 +136,11 @@ final class JustCompileSearch {
     public DocIdSet getDocIdSet(LeafReaderContext context, Bits acceptDocs) {
       return null;
     }
+
+    @Override
+    public String toString(String field) {
+      return "JustCompileFilter";
+    }
   }
 
   static final class JustCompileFilteredDocIdSet extends FilteredDocIdSet {
@@ -191,26 +195,6 @@ final class JustCompileSearch {
     
     @Override
     public int freq() {
-      throw new UnsupportedOperationException(UNSUPPORTED_MSG);
-    }
-
-    @Override
-    public int nextPosition() throws IOException {
-      throw new UnsupportedOperationException(UNSUPPORTED_MSG);
-    }
-
-    @Override
-    public int startOffset() throws IOException {
-      throw new UnsupportedOperationException(UNSUPPORTED_MSG);
-    }
-
-    @Override
-    public int endOffset() throws IOException {
-      throw new UnsupportedOperationException(UNSUPPORTED_MSG);
-    }
-
-    @Override
-    public BytesRef getPayload() throws IOException {
       throw new UnsupportedOperationException(UNSUPPORTED_MSG);
     }
 

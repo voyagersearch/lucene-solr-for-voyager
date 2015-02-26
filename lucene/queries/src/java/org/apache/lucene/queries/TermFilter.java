@@ -1,4 +1,4 @@
-package org.apache.solr.util;
+package org.apache.lucene.queries;
 
 /*
  * Licensed to the Apache Software Foundation (ASF) under one or more
@@ -17,32 +17,27 @@ package org.apache.solr.util;
  * limitations under the License.
  */
 
-import org.apache.solr.core.ConfigSolr;
-import org.apache.solr.core.CoresLocator;
-import org.apache.solr.core.PluginInfo;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.QueryWrapperFilter;
+import org.apache.lucene.search.TermQuery;
 
 /**
- *
+ * A filter that includes documents that match with a specific term.
+ * @deprecated Use QueryWrapperFilter(TermQuery) instead.
  */
-public class MockConfigSolr extends ConfigSolr {
-
-  public MockConfigSolr() {
-    super(null, null);
+@Deprecated
+public class TermFilter extends QueryWrapperFilter {
+  
+  /**
+   * Create a new TermFilter
+   * @param term The term documents need to have in order to be a match for this filter.
+   */
+  public TermFilter(Term term) {
+    super(new TermQuery(term));
   }
 
   @Override
-  public CoresLocator getCoresLocator() {
-    return null;
+  public String toString(String field) {
+    return getQuery().toString();
   }
-
-  @Override
-  public PluginInfo getShardHandlerFactoryPluginInfo() {
-    return null;
-  }
-
-  @Override
-  protected String getProperty(CfgProp key) {
-    return null;
-  }
-
 }

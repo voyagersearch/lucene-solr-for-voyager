@@ -50,11 +50,6 @@ import static org.apache.solr.common.params.CollectionParams.CollectionAction.DE
 public class DeleteReplicaTest extends AbstractFullDistribZkTestBase {
   private CloudSolrClient client;
   
-  @BeforeClass
-  public static void beforeThisClass2() throws Exception {
-
-  }
-
   @Override
   public void distribSetUp() throws Exception {
     super.distribSetUp();
@@ -122,7 +117,7 @@ public class DeleteReplicaTest extends AbstractFullDistribZkTestBase {
         fail("Should have thrown an exception here because the replica is NOT down");
       } catch (SolrException se) {
         assertEquals("Should see 400 here ", se.code(), 400);
-        assertTrue("Should have had a good message here", se.getMessage().contains("with onlyIfDown='true', but state is 'active'"));
+        assertTrue("Expected DeleteReplica to fail because node state is 'active' but returned message was: " + se.getMessage(), se.getMessage().contains("with onlyIfDown='true', but state is 'active'"));
         // This bit is a little weak in that if we're screwing up and actually deleting the replica, we might get back
         // here _before_ the datadir is deleted. But I'd rather not introduce a delay here.
         assertTrue("dataDir for " + replica1.getName() + " should NOT have been deleted by deleteReplica API with onlyIfDown='true'",
@@ -146,7 +141,7 @@ public class DeleteReplicaTest extends AbstractFullDistribZkTestBase {
     client.request(request);
   }
 
-  protected void removeAndWaitForReplicaGone(String COLL_NAME,
+  static void removeAndWaitForReplicaGone(String COLL_NAME,
       CloudSolrClient client, Replica replica, String shard)
       throws SolrServerException, IOException, InterruptedException {
     Map m = makeMap("collection", COLL_NAME, "action", DELETEREPLICA.toLower(), "shard",
@@ -159,7 +154,7 @@ public class DeleteReplicaTest extends AbstractFullDistribZkTestBase {
     boolean success = false;
     DocCollection testcoll = null;
     while (System.currentTimeMillis() < endAt) {
-      testcoll = getCommonCloudSolrClient().getZkStateReader()
+      testcoll = client.getZkStateReader()
           .getClusterState().getCollection(COLL_NAME);
       success = testcoll.getSlice(shard).getReplica(replica.getName()) == null;
       if (success) {

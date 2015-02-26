@@ -106,7 +106,7 @@ public class DuplicateFilter extends Filter {
         if (currTerm == null) {
           break;
         } else {
-          docs = termsEnum.postings(acceptDocs, docs, PostingsEnum.FLAG_NONE);
+          docs = termsEnum.postings(acceptDocs, docs, PostingsEnum.NONE);
           int doc = docs.nextDoc();
           if (doc != DocIdSetIterator.NO_MORE_DOCS) {
             if (keepMode == KeepMode.KM_USE_FIRST_OCCURRENCE) {
@@ -144,7 +144,7 @@ public class DuplicateFilter extends Filter {
         } else {
           if (termsEnum.docFreq() > 1) {
             // unset potential duplicates
-            docs = termsEnum.postings(acceptDocs, docs, PostingsEnum.FLAG_NONE);
+            docs = termsEnum.postings(acceptDocs, docs, PostingsEnum.NONE);
             int doc = docs.nextDoc();
             if (doc != DocIdSetIterator.NO_MORE_DOCS) {
               if (keepMode == KeepMode.KM_USE_FIRST_OCCURRENCE) {
@@ -203,6 +203,15 @@ public class DuplicateFilter extends Filter {
     return keepMode == other.keepMode &&
         processingMode == other.processingMode &&
         fieldName != null && fieldName.equals(other.fieldName);
+  }
+
+  @Override
+  public String toString(String field) {
+    return "DuplicateFilter(" +
+              "fieldName=" + fieldName +"," +
+              "keepMode=" + (keepMode == KeepMode.KM_USE_FIRST_OCCURRENCE ? "first" : "last") + "," +
+              "processingMode=" + (processingMode == ProcessingMode.PM_FAST_INVALIDATION ? "fast" : "full") +
+           ")";
   }
 
   @Override

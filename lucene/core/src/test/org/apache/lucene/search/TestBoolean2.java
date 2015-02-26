@@ -30,9 +30,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.similarities.DefaultSimilarity;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.MockDirectoryWrapper;
-import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TestUtil;
 import org.junit.AfterClass;
@@ -70,7 +68,7 @@ public class TestBoolean2 extends LuceneTestCase {
     searcher.setSimilarity(new DefaultSimilarity());
 
     // Make big index
-    dir2 = new MockDirectoryWrapper(random(), new RAMDirectory(directory, IOContext.DEFAULT));
+    dir2 = new MockDirectoryWrapper(random(), TestUtil.ramCopyOf(directory));
 
     // First multiply small test index:
     mulFactor = 1;
@@ -82,7 +80,7 @@ public class TestBoolean2 extends LuceneTestCase {
       if (VERBOSE) {
         System.out.println("\nTEST: cycle...");
       }
-      final Directory copy = new MockDirectoryWrapper(random(), new RAMDirectory(dir2, IOContext.DEFAULT));
+      final Directory copy = new MockDirectoryWrapper(random(), TestUtil.ramCopyOf(dir2));
       RandomIndexWriter w = new RandomIndexWriter(random(), dir2);
       w.addIndexes(copy);
       docCount = w.maxDoc();
@@ -134,11 +132,11 @@ public class TestBoolean2 extends LuceneTestCase {
     // sometimes return a default impl around the scorer so that we can
     // compare BS1 and BS2
     TopScoreDocCollector collector = TopScoreDocCollector.create(1000);
-    searcher.search(query, null, collector);
+    searcher.search(query, collector);
     ScoreDoc[] hits1 = collector.topDocs().scoreDocs;
 
     collector = TopScoreDocCollector.create(1000);
-    searcher.search(query, null, collector);
+    searcher.search(query, collector);
     ScoreDoc[] hits2 = collector.topDocs().scoreDocs; 
 
     assertEquals(mulFactor * collector.totalHits,
@@ -287,13 +285,13 @@ public class TestBoolean2 extends LuceneTestCase {
         TopFieldCollector collector = TopFieldCollector.create(sort, 1000,
             false, true, true);
 
-        searcher.search(q1, null, collector);
+        searcher.search(q1, collector);
         ScoreDoc[] hits1 = collector.topDocs().scoreDocs;
 
         collector = TopFieldCollector.create(sort, 1000,
             false, true, true);
         
-        searcher.search(q1, null, collector);
+        searcher.search(q1, collector);
         ScoreDoc[] hits2 = collector.topDocs().scoreDocs;
         tot+=hits2.length;
         CheckHits.checkEqual(q1, hits1, hits2);

@@ -21,9 +21,11 @@ import java.io.IOException;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.similarities.DefaultSimilarity;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.LuceneTestCase;
@@ -113,8 +115,8 @@ public class TestConstantScoreQuery extends LuceneTestCase {
       final Query csqbq = new ConstantScoreQuery(bq);
       csqbq.setBoost(17.0f);
       
-      checkHits(searcher, csq1, csq1.getBoost(), ConstantScoreQuery.ConstantScoreScorer.class.getName(), null);
-      checkHits(searcher, csq2, csq2.getBoost(), ConstantScoreQuery.ConstantScoreScorer.class.getName(), ConstantScoreQuery.ConstantScoreScorer.class.getName());
+      checkHits(searcher, csq1, csq1.getBoost(), ConstantScoreQuery.ConstantScoreScorer.class.getName(), TermScorer.class.getName());
+      checkHits(searcher, csq2, csq2.getBoost(), ConstantScoreQuery.ConstantScoreScorer.class.getName(), TermScorer.class.getName());
       
       // for the combined BQ, the scorer should always be BooleanScorer's BucketScorer, because our scorer supports out-of order collection!
       final String bucketScorerClass = FakeScorer.class.getName();
@@ -142,12 +144,12 @@ public class TestConstantScoreQuery extends LuceneTestCase {
     Query query = new ConstantScoreQuery(filterB);
 
     IndexSearcher s = newSearcher(r);
-    assertEquals(1, s.search(query, filterB, 1).totalHits); // Query for field:b, Filter field:b
+    assertEquals(1, s.search(new FilteredQuery(query, filterB), 1).totalHits); // Query for field:b, Filter field:b
 
     Filter filterA = new CachingWrapperFilter(new QueryWrapperFilter(new TermQuery(new Term("field", "a"))));
     query = new ConstantScoreQuery(filterA);
 
-    assertEquals(0, s.search(query, filterB, 1).totalHits); // Query field:b, Filter field:a
+    assertEquals(0, s.search(new FilteredQuery(query, filterB), 1).totalHits); // Query field:b, Filter field:a
 
     r.close();
     d.close();
@@ -179,4 +181,30 @@ public class TestConstantScoreQuery extends LuceneTestCase {
     d.close();
   }
 
+  public void testPropagatesApproximations() throws IOException {
+    Directory dir = newDirectory();
+    RandomIndexWriter w = new RandomIndexWriter(random(), dir);
+    Document doc = new Document();
+    Field f = newTextField("field", "a b", Field.Store.NO);
+    doc.add(f);
+    w.addDocument(doc);
+    w.commit();
+
+    DirectoryReader reader = w.getReader();
+    final IndexSearcher searcher = new IndexSearcher(reader);
+
+    PhraseQuery pq = new PhraseQuery();
+    pq.add(new Term("field", "a"));
+    pq.add(new Term("field", "b"));
+
+    ConstantScoreQuery q = new ConstantScoreQuery(pq);
+
+    final Weight weight = searcher.createNormalizedWeight(q, true);
+    final Scorer scorer = weight.scorer(reader.leaves().get(0), null);
+    assertNotNull(scorer.asTwoPhaseIterator());
+
+    reader.close();
+    w.close();
+    dir.close();
+  }
 }

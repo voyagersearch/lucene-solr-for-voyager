@@ -52,9 +52,9 @@ public class MultiTermQueryWrapperFilter<Q extends MultiTermQuery> extends Filte
   }
 
   @Override
-  public String toString() {
+  public String toString(String field) {
     // query.toString should be ok for the filter, too, if the query boost is 1.0f
-    return query.toString();
+    return query.toString(field);
   }
 
   @Override
@@ -94,7 +94,7 @@ public class MultiTermQueryWrapperFilter<Q extends MultiTermQuery> extends Filte
     BitDocIdSet.Builder builder = new BitDocIdSet.Builder(context.reader().maxDoc());
     PostingsEnum docs = null;
     while (termsEnum.next() != null) {
-      docs = termsEnum.postings(acceptDocs, docs, PostingsEnum.FLAG_NONE);
+      docs = termsEnum.postings(acceptDocs, docs, PostingsEnum.NONE);
       builder.or(docs);
     }
     return builder.build();

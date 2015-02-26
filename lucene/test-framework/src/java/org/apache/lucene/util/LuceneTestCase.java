@@ -297,6 +297,21 @@ public abstract class LuceneTestCase extends Assert {
   }
   
   /**
+   * Annotation for test classes that should avoid mock filesystem types
+   * (because they test a bug that only happens on linux, for example).
+   * <p>
+   * You can avoid specific names {@link Class#getSimpleName()} or use
+   * the special value {@code *} to disable all mock filesystems.
+   */
+  @Documented
+  @Inherited
+  @Retention(RetentionPolicy.RUNTIME)
+  @Target(ElementType.TYPE)
+  public @interface SuppressFileSystems {
+    String[] value();
+  }
+  
+  /**
    * Marks any suites which are known not to close all the temporary
    * files. This may prevent temp. files and folders from being cleaned
    * up after the suite is completed.
@@ -1290,7 +1305,9 @@ public abstract class LuceneTestCase extends Assert {
   public static BaseDirectoryWrapper newDirectory(Random r, Directory d) throws IOException {
     Directory impl = newDirectoryImpl(r, TEST_DIRECTORY);
     for (String file : d.listAll()) {
-     impl.copyFrom(d, file, file, newIOContext(r));
+      if (file.startsWith(IndexFileNames.SEGMENTS) || IndexFileNames.CODEC_FILE_PATTERN.matcher(file).matches()) {
+        impl.copyFrom(d, file, file, newIOContext(r));
+      }
     }
     return wrapDirectory(r, impl, rarely(r));
   }
@@ -1894,17 +1911,17 @@ public abstract class LuceneTestCase extends Assert {
       assertEquals(info, term, rightTermsEnum.next());
       assertTermStatsEquals(info, leftTermsEnum, rightTermsEnum);
       if (deep) {
-        assertDocsAndPositionsEnumEquals(info, leftPositions = leftTermsEnum.postings(null, leftPositions, PostingsEnum.FLAG_ALL),
-                                   rightPositions = rightTermsEnum.postings(null, rightPositions, PostingsEnum.FLAG_ALL));
-        assertDocsAndPositionsEnumEquals(info, leftPositions = leftTermsEnum.postings(randomBits, leftPositions, PostingsEnum.FLAG_ALL),
-                                   rightPositions = rightTermsEnum.postings(randomBits, rightPositions, PostingsEnum.FLAG_ALL));
+        assertDocsAndPositionsEnumEquals(info, leftPositions = leftTermsEnum.postings(null, leftPositions, PostingsEnum.ALL),
+                                   rightPositions = rightTermsEnum.postings(null, rightPositions, PostingsEnum.ALL));
+        assertDocsAndPositionsEnumEquals(info, leftPositions = leftTermsEnum.postings(randomBits, leftPositions, PostingsEnum.ALL),
+                                   rightPositions = rightTermsEnum.postings(randomBits, rightPositions, PostingsEnum.ALL));
 
         assertPositionsSkippingEquals(info, leftReader, leftTermsEnum.docFreq(), 
-                                leftPositions = leftTermsEnum.postings(null, leftPositions, PostingsEnum.FLAG_ALL),
-                                rightPositions = rightTermsEnum.postings(null, rightPositions, PostingsEnum.FLAG_ALL));
+                                leftPositions = leftTermsEnum.postings(null, leftPositions, PostingsEnum.ALL),
+                                rightPositions = rightTermsEnum.postings(null, rightPositions, PostingsEnum.ALL));
         assertPositionsSkippingEquals(info, leftReader, leftTermsEnum.docFreq(), 
-                                leftPositions = leftTermsEnum.postings(randomBits, leftPositions, PostingsEnum.FLAG_ALL),
-            rightPositions = rightTermsEnum.postings(randomBits, rightPositions, PostingsEnum.FLAG_ALL));
+                                leftPositions = leftTermsEnum.postings(randomBits, leftPositions, PostingsEnum.ALL),
+            rightPositions = rightTermsEnum.postings(randomBits, rightPositions, PostingsEnum.ALL));
 
         // with freqs:
         assertDocsEnumEquals(info, leftDocs = leftTermsEnum.postings(null, leftDocs),
@@ -1915,11 +1932,11 @@ public abstract class LuceneTestCase extends Assert {
             true);
 
         // w/o freqs:
-        assertDocsEnumEquals(info, leftDocs = leftTermsEnum.postings(null, leftDocs, PostingsEnum.FLAG_NONE),
-            rightDocs = rightTermsEnum.postings(null, rightDocs, PostingsEnum.FLAG_NONE),
+        assertDocsEnumEquals(info, leftDocs = leftTermsEnum.postings(null, leftDocs, PostingsEnum.NONE),
+            rightDocs = rightTermsEnum.postings(null, rightDocs, PostingsEnum.NONE),
             false);
-        assertDocsEnumEquals(info, leftDocs = leftTermsEnum.postings(randomBits, leftDocs, PostingsEnum.FLAG_NONE),
-            rightDocs = rightTermsEnum.postings(randomBits, rightDocs, PostingsEnum.FLAG_NONE),
+        assertDocsEnumEquals(info, leftDocs = leftTermsEnum.postings(randomBits, leftDocs, PostingsEnum.NONE),
+            rightDocs = rightTermsEnum.postings(randomBits, rightDocs, PostingsEnum.NONE),
             false);
         
         // with freqs:
@@ -1934,12 +1951,12 @@ public abstract class LuceneTestCase extends Assert {
 
         // w/o freqs:
         assertDocsSkippingEquals(info, leftReader, leftTermsEnum.docFreq(), 
-            leftDocs = leftTermsEnum.postings(null, leftDocs, PostingsEnum.FLAG_NONE),
-            rightDocs = rightTermsEnum.postings(null, rightDocs, PostingsEnum.FLAG_NONE),
+            leftDocs = leftTermsEnum.postings(null, leftDocs, PostingsEnum.NONE),
+            rightDocs = rightTermsEnum.postings(null, rightDocs, PostingsEnum.NONE),
             false);
         assertDocsSkippingEquals(info, leftReader, leftTermsEnum.docFreq(), 
-            leftDocs = leftTermsEnum.postings(randomBits, leftDocs, PostingsEnum.FLAG_NONE),
-            rightDocs = rightTermsEnum.postings(randomBits, rightDocs, PostingsEnum.FLAG_NONE),
+            leftDocs = leftTermsEnum.postings(randomBits, leftDocs, PostingsEnum.NONE),
+            rightDocs = rightTermsEnum.postings(randomBits, rightDocs, PostingsEnum.NONE),
             false);
       }
     }

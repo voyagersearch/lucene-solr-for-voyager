@@ -946,6 +946,7 @@ public class TestIndexWriterExceptions extends LuceneTestCase {
       MockDirectoryWrapper dir = newMockDirectory();
       dir.setFailOnCreateOutput(false);
       dir.setEnableVirusScanner(false); // we check for specific list of files
+      int fileCount = dir.listAll().length;
       IndexWriter w = new IndexWriter(dir, newIndexWriterConfig(new MockAnalyzer(random())));
       Document doc = new Document();
       doc.add(newTextField("field", "a field", Field.Store.YES));
@@ -962,7 +963,7 @@ public class TestIndexWriterExceptions extends LuceneTestCase {
       assertTrue(failure.failOnCommit && failure.failOnDeleteFile);
       w.rollback();
       String files[] = dir.listAll();
-      assertTrue(files.length == 0 || Arrays.equals(files, new String[] { IndexWriter.WRITE_LOCK_NAME }));
+      assertTrue(files.length == fileCount || (files.length == fileCount+1 && Arrays.asList(files).contains(IndexWriter.WRITE_LOCK_NAME)));
       dir.close();
     }
   }
@@ -983,7 +984,7 @@ public class TestIndexWriterExceptions extends LuceneTestCase {
       if (VERBOSE) {
         System.out.println("TEST: iter " + i);
       }
-      MockDirectoryWrapper dir = new MockDirectoryWrapper(random(), new RAMDirectory(startDir, newIOContext(random())));
+      MockDirectoryWrapper dir = new MockDirectoryWrapper(random(), TestUtil.ramCopyOf(startDir));
       conf = newIndexWriterConfig(new MockAnalyzer(random()))
                .setMergeScheduler(new ConcurrentMergeScheduler());
       ((ConcurrentMergeScheduler) conf.getMergeScheduler()).setSuppressExceptions();

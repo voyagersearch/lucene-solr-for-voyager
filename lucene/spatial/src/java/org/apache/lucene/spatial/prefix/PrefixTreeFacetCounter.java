@@ -116,6 +116,11 @@ public class PrefixTreeFacetCounter {
     // traversal code.  TODO consider refactoring if/when it makes sense (more use cases than this)
     new AbstractVisitingPrefixTreeFilter(queryShape, strategy.getFieldName(), tree, facetLevel, scanLevel,
         !strategy.isPointsOnly()) {
+      
+      @Override
+      public String toString(String field) {
+        return "anonPrefixTreeFilter";
+      }
 
       @Override
       public DocIdSet getDocIdSet(LeafReaderContext context, Bits acceptDocs) throws IOException {
@@ -168,7 +173,7 @@ public class PrefixTreeFacetCounter {
               return termsEnum.docFreq();
             }
             int count = 0;
-            postingsEnum = termsEnum.postings(acceptDocs, postingsEnum, PostingsEnum.FLAG_NONE);
+            postingsEnum = termsEnum.postings(acceptDocs, postingsEnum, PostingsEnum.NONE);
             while (postingsEnum.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
               count++;
             }
@@ -179,7 +184,7 @@ public class PrefixTreeFacetCounter {
             if (acceptDocs == null) {
               return true;
             }
-            postingsEnum = termsEnum.postings(acceptDocs, postingsEnum, PostingsEnum.FLAG_NONE);
+            postingsEnum = termsEnum.postings(acceptDocs, postingsEnum, PostingsEnum.NONE);
             return (postingsEnum.nextDoc() != DocIdSetIterator.NO_MORE_DOCS);
           }
 

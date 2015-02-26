@@ -105,6 +105,12 @@ Bug Fixes
 * SOLR-7113: Multiple calls to UpdateLog#init is not thread safe with respect to the
   HDFS FileSystem client object usage. (Mark Miller, Vamsee Yarlagadda)
 
+* SOLR-7128: Two phase distributed search is fetching extra fields in GET_TOP_IDS phase.
+  (Pablo Queixalos, shalin)
+
+* SOLR-7139: Fix SolrContentHandler for TIKA to ignore multiple startDocument events.
+  (Chris A. Mattmann, Uwe Schindler)  
+
 Optimizations
 ----------------------
 
@@ -156,6 +162,9 @@ Other Changes
 
 * SOLR-7160: Rename ConfigSolr to NodeConfig, and decouple it from xml
   representation (Alan Woodward)
+
+* SOLR-7130: Make stale state notification work without failing the requests
+  (Noble Paul, shalin)
 
 ==================  5.0.0 ==================
 

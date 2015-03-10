@@ -32,6 +32,7 @@ import org.apache.lucene.util.LuceneTestCase.SuppressFileSystems;
 import org.apache.lucene.util.LuceneTestCase.SuppressSysoutChecks;
 import org.apache.lucene.util.QuickPatchThreadsFilter;
 import org.apache.lucene.util.TestUtil;
+import org.apache.solr.client.solrj.embedded.JettyConfig;
 import org.apache.solr.client.solrj.impl.HttpClientConfigurer;
 import org.apache.solr.client.solrj.impl.HttpClientUtil;
 import org.apache.solr.client.solrj.util.ClientUtils;
@@ -46,14 +47,14 @@ import org.apache.solr.common.params.ModifiableSolrParams;
 import org.apache.solr.common.params.SolrParams;
 import org.apache.solr.common.util.ObjectReleaseTracker;
 import org.apache.solr.common.util.XML;
-import org.apache.solr.core.CoresLocator;
-import org.apache.solr.core.NodeConfig;
 import org.apache.solr.core.CoreContainer;
 import org.apache.solr.core.CoreDescriptor;
-import org.apache.solr.core.SolrXmlConfig;
+import org.apache.solr.core.CoresLocator;
+import org.apache.solr.core.NodeConfig;
 import org.apache.solr.core.SolrConfig;
 import org.apache.solr.core.SolrCore;
 import org.apache.solr.core.SolrResourceLoader;
+import org.apache.solr.core.SolrXmlConfig;
 import org.apache.solr.handler.UpdateRequestHandler;
 import org.apache.solr.request.LocalSolrQueryRequest;
 import org.apache.solr.request.SolrQueryRequest;
@@ -132,6 +133,7 @@ import static com.google.common.base.Preconditions.checkNotNull;
 public abstract class SolrTestCaseJ4 extends LuceneTestCase {
 
   public static final String DEFAULT_TEST_CORENAME = "collection1";
+  protected static final String CORE_PROPERTIES_FILENAME = "core.properties";
 
   private static String coreName = DEFAULT_TEST_CORENAME;
 
@@ -151,7 +153,7 @@ public abstract class SolrTestCaseJ4 extends LuceneTestCase {
     log.info("Writing core.properties file to {}", coreDirectory);
     Files.createDirectories(coreDirectory);
     try (Writer writer =
-             new OutputStreamWriter(Files.newOutputStream(coreDirectory.resolve("core.properties")), Charset.forName("UTF-8"))) {
+             new OutputStreamWriter(Files.newOutputStream(coreDirectory.resolve(CORE_PROPERTIES_FILENAME)), Charset.forName("UTF-8"))) {
       properties.store(writer, testname);
     }
   }
@@ -302,6 +304,10 @@ public abstract class SolrTestCaseJ4 extends LuceneTestCase {
         trySslClientAuth);
     
     return new SSLTestConfig(trySsl, trySslClientAuth);
+  }
+
+  protected static JettyConfig buildJettyConfig(String context) {
+    return JettyConfig.builder().setContext(context).withSSLConfig(sslConfig).build();
   }
   
   protected static String buildUrl(final int port, final String context) {
@@ -744,7 +750,7 @@ public abstract class SolrTestCaseJ4 extends LuceneTestCase {
     try {
       String m = (null == message) ? "" : message + " ";
       String response = h.query(req);
-
+      
       if (req.getParams().getBool("facet", false)) {
         // add a test to ensure that faceting did not throw an exception
         // internally, where it would be added to facet_counts/exception
@@ -1882,6 +1888,7 @@ public abstract class SolrTestCaseJ4 extends LuceneTestCase {
     FileUtils.copyFile(new File(top, "open-exchange-rates.json"), new File(subHome, "open-exchange-rates.json"));
     FileUtils.copyFile(new File(top, "protwords.txt"), new File(subHome, "protwords.txt"));
     FileUtils.copyFile(new File(top, "schema.xml"), new File(subHome, "schema.xml"));
+    FileUtils.copyFile(new File(top, "enumsConfig.xml"), new File(subHome, "enumsConfig.xml"));
     FileUtils.copyFile(new File(top, "solrconfig.snippet.randomindexconfig.xml"), new File(subHome, "solrconfig.snippet.randomindexconfig.xml"));
     FileUtils.copyFile(new File(top, "solrconfig.xml"), new File(subHome, "solrconfig.xml"));
     FileUtils.copyFile(new File(top, "stopwords.txt"), new File(subHome, "stopwords.txt"));

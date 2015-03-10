@@ -1,4 +1,4 @@
-package org.apache.solr.core;
+package runtimecode;
 
 /*
  * Licensed to the Apache Software Foundation (ASF) under one or more
@@ -17,52 +17,19 @@ package org.apache.solr.core;
  * limitations under the License.
  */
 
-
 import java.io.IOException;
 
+import org.apache.solr.handler.DumpRequestHandler;
 import org.apache.solr.request.SolrQueryRequest;
 import org.apache.solr.response.SolrQueryResponse;
-import org.apache.solr.util.plugin.SolrCoreAware;
 
-public class BlobStoreTestRequestHandlerV2 extends BlobStoreTestRequestHandler implements Runnable, SolrCoreAware{
 
-  private SolrCore core;
-
-  private long version = 1;
-  private String watchedVal = null;
-
+public class RuntimeLibReqHandler extends DumpRequestHandler {
   @Override
   public void handleRequestBody(SolrQueryRequest req, SolrQueryResponse rsp) throws IOException {
     super.handleRequestBody(req, rsp);
     rsp.add("class", this.getClass().getName());
-    rsp.add("x",watchedVal);
-  /*  try {
-      Class.forName("org.apache.solr.core.BlobStoreTestRequestHandler");
-    } catch (ClassNotFoundException e) {
-      rsp.add("e", ClassNotFoundException.class.getSimpleName());
-    }*/
-
-  }
-
-  @Override
-  public void run() {
-    RequestParams p = core.getSolrConfig().getRequestParams();
-    RequestParams.VersionedParams v = p.getParams("watched");
-    if(v== null){
-      watchedVal = null;
-      version=-1;
-      return;
-    }
-    if(v.getVersion() != version){
-       watchedVal =  v.getMap().get("x");
-    }
-  }
-
-  @Override
-  public void inform(SolrCore core) {
-    this.core = core;
-    core.addConfListener(this);
-    run();
+    rsp.add("loader",  getClass().getClassLoader().getClass().getName() );
 
   }
 }

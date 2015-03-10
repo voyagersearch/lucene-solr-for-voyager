@@ -43,15 +43,12 @@ import org.apache.http.message.BasicHeader;
 import org.apache.http.message.BasicNameValuePair;
 import org.apache.http.util.EntityUtils;
 import org.apache.solr.client.solrj.ResponseParser;
-import org.apache.solr.client.solrj.SolrRequest;
 import org.apache.solr.client.solrj.SolrClient;
+import org.apache.solr.client.solrj.SolrRequest;
 import org.apache.solr.client.solrj.SolrServerException;
 import org.apache.solr.client.solrj.request.RequestWriter;
-import org.apache.solr.client.solrj.request.UpdateRequest;
-import org.apache.solr.client.solrj.response.UpdateResponse;
 import org.apache.solr.client.solrj.util.ClientUtils;
 import org.apache.solr.common.SolrException;
-import org.apache.solr.common.SolrInputDocument;
 import org.apache.solr.common.params.CommonParams;
 import org.apache.solr.common.params.ModifiableSolrParams;
 import org.apache.solr.common.params.SolrParams;
@@ -78,6 +75,27 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
+/**
+ * A SolrClient implementation that talks directly to a Solr server via HTTP
+ *
+ * There are two ways to use an HttpSolrClient:
+ *
+ * 1) Pass a URL to the constructor that points directly at a particular core
+ * <pre>
+ *   SolrClient client = new HttpSolrClient("http://my-solr-server:8983/solr/core1");
+ *   QueryResponse resp = client.query(new SolrQuery("*:*"));
+ * </pre>
+ * In this case, you can query the given core directly, but you cannot query any other
+ * cores or issue CoreAdmin requests with this client.
+ *
+ * 2) Pass the base URL of the node to the constructor
+ * <pre>
+ *   SolrClient client = new HttpSolrClient("http://my-solr-server:8983/solr");
+ *   QueryResponse resp = client.query("core1", new SolrQuery("*:*"));
+ * </pre>
+ * In this case, you must pass the name of the required core for all queries and updates,
+ * but you may use the same client for all cores, and for CoreAdmin requests.
+ */
 public class HttpSolrClient extends SolrClient {
 
   private static final String UTF_8 = StandardCharsets.UTF_8.name();
@@ -201,17 +219,21 @@ public class HttpSolrClient extends SolrClient {
    *      org.apache.solr.client.solrj.ResponseParser)
    */
   @Override
-  public NamedList<Object> request(final SolrRequest request)
+  public NamedList<Object> request(final SolrRequest request, String collection)
       throws SolrServerException, IOException {
     ResponseParser responseParser = request.getResponseParser();
     if (responseParser == null) {
       responseParser = parser;
     }
-    return request(request, responseParser);
+    return request(request, responseParser, collection);
+  }
+
+  public NamedList<Object> request(final SolrRequest request, final ResponseParser processor) throws SolrServerException, IOException {
+    return request(request, processor, null);
   }
   
-  public NamedList<Object> request(final SolrRequest request, final ResponseParser processor) throws SolrServerException, IOException {
-    return executeMethod(createMethod(request),processor);
+  public NamedList<Object> request(final SolrRequest request, final ResponseParser processor, String collection) throws SolrServerException, IOException {
+    return executeMethod(createMethod(request, collection),processor);
   }
   
   /**
@@ -239,7 +261,7 @@ public class HttpSolrClient extends SolrClient {
    */
   public HttpUriRequestResponse httpUriRequest(final SolrRequest request, final ResponseParser processor) throws SolrServerException, IOException {
     HttpUriRequestResponse mrr = new HttpUriRequestResponse();
-    final HttpRequestBase method = createMethod(request);
+    final HttpRequestBase method = createMethod(request, null);
     ExecutorService pool = Executors.newFixedThreadPool(1, new SolrjNamedThreadFactory("httpUriRequest"));
     try {
       mrr.future = pool.submit(new Callable<NamedList<Object>>(){
@@ -274,7 +296,7 @@ public class HttpSolrClient extends SolrClient {
     return queryModParams;
   }
 
-  protected HttpRequestBase createMethod(final SolrRequest request) throws IOException, SolrServerException {
+  protected HttpRequestBase createMethod(final SolrRequest request, String collection) throws IOException, SolrServerException {
     HttpRequestBase method = null;
     InputStream is = null;
     SolrParams params = request.getParams();
@@ -299,6 +321,10 @@ public class HttpSolrClient extends SolrClient {
     if (invariantParams != null) {
       wparams.add(invariantParams);
     }
+
+    String basePath = baseUrl;
+    if (collection != null)
+      basePath += "/" + collection;
     
     int tries = maxRetries + 1;
     try {
@@ -312,11 +338,11 @@ public class HttpSolrClient extends SolrClient {
             if( streams != null ) {
               throw new SolrException( SolrException.ErrorCode.BAD_REQUEST, "GET can't send streams!" );
             }
-            method = new HttpGet( baseUrl + path + ClientUtils.toQueryString( wparams, false ) );
+            method = new HttpGet(basePath + path + ClientUtils.toQueryString(wparams, false));
           }
           else if( SolrRequest.METHOD.POST == request.getMethod() || SolrRequest.METHOD.PUT == request.getMethod() ) {
 
-            String url = baseUrl + path;
+            String url = basePath + path;
             boolean hasNullStreamName = false;
             if (streams != null) {
               for (ContentStream cs : streams) {
@@ -698,54 +724,6 @@ public class HttpSolrClient extends SolrClient {
   
   public void setRequestWriter(RequestWriter requestWriter) {
     this.requestWriter = requestWriter;
-  }
-  
-  /**
-   * Adds the documents supplied by the given iterator.
-   * 
-   * @param docIterator
-   *          the iterator which returns SolrInputDocument instances
-   * 
-   * @return the response from the SolrServer
-   */
-  public UpdateResponse add(Iterator<SolrInputDocument> docIterator)
-      throws SolrServerException, IOException {
-    UpdateRequest req = new UpdateRequest();
-    req.setDocIterator(docIterator);
-    return req.process(this);
-  }
-  
-  /**
-   * Adds the beans supplied by the given iterator.
-   * 
-   * @param beanIterator
-   *          the iterator which returns Beans
-   * 
-   * @return the response from the SolrServer
-   */
-  public UpdateResponse addBeans(final Iterator<?> beanIterator)
-      throws SolrServerException, IOException {
-    UpdateRequest req = new UpdateRequest();
-    req.setDocIterator(new Iterator<SolrInputDocument>() {
-      
-      @Override
-      public boolean hasNext() {
-        return beanIterator.hasNext();
-      }
-      
-      @Override
-      public SolrInputDocument next() {
-        Object o = beanIterator.next();
-        if (o == null) return null;
-        return getBinder().toSolrInputDocument(o);
-      }
-      
-      @Override
-      public void remove() {
-        beanIterator.remove();
-      }
-    });
-    return req.process(this);
   }
   
   /**

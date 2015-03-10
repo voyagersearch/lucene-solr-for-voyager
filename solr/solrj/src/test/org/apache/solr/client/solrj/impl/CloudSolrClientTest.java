@@ -17,12 +17,6 @@ package org.apache.solr.client.solrj.impl;
  * limitations under the License.
  */
 
-import static org.apache.solr.cloud.OverseerCollectionProcessor.CREATE_NODE_SET;
-import static org.apache.solr.cloud.OverseerCollectionProcessor.NUM_SLICES;
-import static org.apache.solr.common.cloud.ZkNodeProps.makeMap;
-import static org.apache.solr.common.cloud.ZkStateReader.MAX_SHARDS_PER_NODE;
-import static org.apache.solr.common.cloud.ZkStateReader.REPLICATION_FACTOR;
-
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
@@ -51,10 +45,11 @@ import org.apache.solr.common.params.ModifiableSolrParams;
 import org.apache.solr.common.params.ShardParams;
 import org.apache.solr.common.util.NamedList;
 import org.apache.solr.common.util.SimpleOrderedMap;
-import org.apache.zookeeper.KeeperException;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.ExpectedException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -71,6 +66,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeoutException;
+
+import static org.apache.solr.cloud.OverseerCollectionProcessor.NUM_SLICES;
+import static org.apache.solr.common.cloud.ZkNodeProps.makeMap;
+import static org.apache.solr.common.cloud.ZkStateReader.MAX_SHARDS_PER_NODE;
+import static org.apache.solr.common.cloud.ZkStateReader.REPLICATION_FACTOR;
 
 
 /**
@@ -122,6 +122,7 @@ public class CloudSolrClientTest extends AbstractFullDistribZkTestBase {
 
   @Test
   public void test() throws Exception {
+    checkCollectionParameters();
     allTests();
     stateVersionParamTest();
     customHttpClientTest();
@@ -498,6 +499,44 @@ public class CloudSolrClientTest extends AbstractFullDistribZkTestBase {
     indexDoc(doc);
   }
 
+  private void checkCollectionParameters() throws Exception {
+
+    try (CloudSolrClient client = createCloudClient("multicollection1")) {
+
+      createCollection("multicollection1", client, 2, 2);
+      createCollection("multicollection2", client, 2, 2);
+      waitForRecoveriesToFinish("multicollection1", false);
+      waitForRecoveriesToFinish("multicollection2", false);
+
+      List<SolrInputDocument> docs = new ArrayList<>(3);
+      for (int i = 0; i < 3; i++) {
+        SolrInputDocument doc = new SolrInputDocument();
+        doc.addField(id, Integer.toString(i));
+        doc.addField("a_t", "hello");
+        docs.add(doc);
+      }
+
+      client.add(docs);     // default - will add them to multicollection1
+      client.commit();
+
+      ModifiableSolrParams queryParams = new ModifiableSolrParams();
+      queryParams.add("q", "*:*");
+      assertEquals(3, client.query(queryParams).getResults().size());
+      assertEquals(0, client.query("multicollection2", queryParams).getResults().size());
+
+      SolrQuery query = new SolrQuery("*:*");
+      query.set("collection", "multicollection2");
+      assertEquals(0, client.query(query).getResults().size());
+
+      client.add("multicollection2", docs);
+      client.commit("multicollection2");
+
+      assertEquals(3, client.query("multicollection2", queryParams).getResults().size());
+
+    }
+
+  }
+
   private void stateVersionParamTest() throws Exception {
 
     try (CloudSolrClient client = createCloudClient(null)) {
@@ -572,17 +611,20 @@ public class CloudSolrClientTest extends AbstractFullDistribZkTestBase {
     }
   }
 
+  @Rule
+  public ExpectedException exception = ExpectedException.none();
+
   public void testWrongZkChrootTest() throws IOException {
+
+    exception.expect(SolrException.class);
+    exception.expectMessage("cluster not found/not ready");
+
     try (CloudSolrClient client = new CloudSolrClient(zkServer.getZkAddress() + "/xyz/foo")) {
       client.setDefaultCollection(DEFAULT_COLLECTION);
       client.setZkClientTimeout(1000 * 60);
       client.connect();
       fail("Expected exception");
-    } catch(SolrException e) {
-      assertTrue(e.getCause() instanceof KeeperException);
     }
-    // see SOLR-6146 - this test will fail by virtue of the zkClient tracking performed
-    // in the afterClass method of the base class
   }
 
   public void customHttpClientTest() throws IOException {

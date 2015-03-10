@@ -80,6 +80,7 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 import java.util.Set;
 
 @ThreadLeakAction({Action.WARN})
@@ -686,7 +687,7 @@ public class MorphlineGoLiveMiniMRTest extends AbstractFullDistribZkTestBase {
     }
   }
   
-  private SolrDocumentList executeSolrQuery(SolrClient collection, String queryString) throws SolrServerException {
+  private SolrDocumentList executeSolrQuery(SolrClient collection, String queryString) throws SolrServerException, IOException {
     SolrQuery query = new SolrQuery(queryString).setRows(2 * RECORD_COUNT).addSort("id", ORDER.asc);
     QueryResponse response = collection.query(query);
     return response.getResults();
@@ -743,19 +744,21 @@ public class MorphlineGoLiveMiniMRTest extends AbstractFullDistribZkTestBase {
   public JettySolrRunner createJetty(File solrHome, String dataDir,
       String shardList, String solrConfigOverride, String schemaOverride)
       throws Exception {
-    
-    JettySolrRunner jetty = new JettySolrRunner(solrHome.getAbsolutePath(),
-        context, 0, solrConfigOverride, schemaOverride, true, null, sslConfig);
 
-    jetty.setShards(shardList);
-    
-    if (System.getProperty("collection") == null) {
-      System.setProperty("collection", "collection1");
-    }
-    
+    Properties props = new Properties();
+    if (solrConfigOverride != null)
+      props.setProperty("solrconfig", solrConfigOverride);
+    if (schemaOverride != null)
+      props.setProperty("schema", schemaOverride);
+    props.setProperty("shards", shardList);
+
+    String collection = System.getProperty("collection");
+    if (collection == null)
+      collection = "collection1";
+    props.setProperty("collection", collection);
+
+    JettySolrRunner jetty = new JettySolrRunner(solrHome.getAbsolutePath(), props, buildJettyConfig(context));
     jetty.start();
-    
-    System.clearProperty("collection");
     
     return jetty;
   }

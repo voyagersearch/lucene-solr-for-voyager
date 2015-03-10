@@ -24,6 +24,7 @@ import org.apache.solr.client.solrj.SolrClient;
 import org.apache.solr.client.solrj.SolrQuery;
 import org.apache.solr.client.solrj.SolrRequest;
 import org.apache.solr.client.solrj.SolrServerException;
+import org.apache.solr.client.solrj.embedded.JettyConfig;
 import org.apache.solr.client.solrj.embedded.JettySolrRunner;
 import org.apache.solr.client.solrj.impl.CloudSolrClient;
 import org.apache.solr.client.solrj.impl.HttpSolrClient;
@@ -75,6 +76,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Properties;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -280,7 +282,6 @@ public abstract class AbstractFullDistribZkTestBase extends AbstractDistribZkTes
       File controlJettyDir = createTempDir("control").toFile();
       setupJettySolrHome(controlJettyDir);
 
-      System.setProperty("coreRootDirectory", controlJettyDir.toPath().resolve("cores").toString());
       controlJetty = createJetty(controlJettyDir, useJettyDataDir ? getDataDir(testDir
           + "/control/data") : null); // don't pass shard name... let it default to
                                // "shard1"
@@ -390,8 +391,7 @@ public abstract class AbstractFullDistribZkTestBase extends AbstractDistribZkTes
 
       jettyDir.mkdirs();
       setupJettySolrHome(jettyDir);
-      log.info("create jetty " + i);
-      System.setProperty("coreRootDirectory", jettyDir.toPath().resolve("cores").toString());
+      log.info("create jetty {} in directory {}", i, jettyDir);
       JettySolrRunner j = createJetty(jettyDir, useJettyDataDir ? getDataDir(testDir + "/jetty"
           + cnt) : null, null, "solrconfig.xml", null);
       jettys.add(j);
@@ -452,13 +452,13 @@ public abstract class AbstractFullDistribZkTestBase extends AbstractDistribZkTes
 
     int cnt = this.jettyIntCntr.incrementAndGet();
 
-      File jettyDir = createTempDir("jetty").toFile();
-      jettyDir.mkdirs();
-      org.apache.commons.io.FileUtils.copyDirectory(new File(getSolrHome()), jettyDir);
-      JettySolrRunner j = createJetty(jettyDir, testDir + "/jetty" + cnt, shard, "solrconfig.xml", null);
-      jettys.add(j);
-      SolrClient client = createNewSolrClient(j.getLocalPort());
-      clients.add(client);
+    File jettyDir = createTempDir("jetty").toFile();
+    jettyDir.mkdirs();
+    setupJettySolrHome(jettyDir);
+    JettySolrRunner j = createJetty(jettyDir, testDir + "/jetty" + cnt, shard, "solrconfig.xml", null);
+    jettys.add(j);
+    SolrClient client = createNewSolrClient(j.getLocalPort());
+    clients.add(client);
 
     int retries = 60;
     while (--retries >= 0) {
@@ -494,10 +494,22 @@ public abstract class AbstractFullDistribZkTestBase extends AbstractDistribZkTes
   public JettySolrRunner createJetty(String dataDir, String ulogDir, String shardList,
       String solrConfigOverride) throws Exception {
 
-    JettySolrRunner jetty = new JettySolrRunner(getSolrHome(), context, 0,
-        solrConfigOverride, null, false, getExtraServlets(), sslConfig, getExtraRequestFilters());
-    jetty.setShards(shardList);
-    jetty.setDataDir(getDataDir(dataDir));
+    JettyConfig jettyconfig = JettyConfig.builder()
+        .setContext(context)
+        .stopAtShutdown(false)
+        .withServlets(getExtraServlets())
+        .withFilters(getExtraRequestFilters())
+        .withSSLConfig(sslConfig)
+        .build();
+
+    Properties props = new Properties();
+    props.setProperty("solr.data.dir", getDataDir(dataDir));
+    props.setProperty("shards", shardList);
+    props.setProperty("solr.ulog.dir", ulogDir);
+    props.setProperty("solrconfig", solrConfigOverride);
+    
+    JettySolrRunner jetty = new JettySolrRunner(getSolrHome(), props, jettyconfig);
+
     jetty.start();
 
     return jetty;
@@ -509,9 +521,26 @@ public abstract class AbstractFullDistribZkTestBase extends AbstractDistribZkTes
       solrHome = getRelativeSolrHomePath(solrHome);
     }
 
-    JettySolrRunner jetty = new JettySolrRunner(solrHome.getPath(), context, 0, solrConfigOverride, schemaOverride, false, getExtraServlets(), sslConfig, getExtraRequestFilters());
-    jetty.setShards(shardList);
-    jetty.setDataDir(getDataDir(dataDir));
+    JettyConfig jettyconfig = JettyConfig.builder()
+        .setContext(context)
+        .stopAtShutdown(false)
+        .withServlets(getExtraServlets())
+        .withFilters(getExtraRequestFilters())
+        .withSSLConfig(sslConfig)
+        .build();
+
+    Properties props = new Properties();
+    if (solrConfigOverride != null)
+      props.setProperty("solrconfig", solrConfigOverride);
+    if (schemaOverride != null)
+      props.setProperty("schema", schemaOverride);
+    if (shardList != null)
+      props.setProperty("shards", shardList);
+    if (dataDir != null)
+      props.setProperty("solr.data.dir", getDataDir(dataDir));
+    props.setProperty("coreRootDirectory", solrHome.toPath().resolve("cores").toAbsolutePath().toString());
+    
+    JettySolrRunner jetty = new JettySolrRunner(solrHome.getPath(), props, jettyconfig);
     jetty.start();
 
     return jetty;
@@ -526,13 +555,28 @@ public abstract class AbstractFullDistribZkTestBase extends AbstractDistribZkTes
                                      String shardList, String solrConfigOverride, String schemaOverride)
       throws Exception {
 
-    JettySolrRunner jetty = new JettySolrRunner(solrHome.getPath(), context,
-        0, solrConfigOverride, schemaOverride, false,
-        getExtraServlets(), sslConfig, getExtraRequestFilters());
-    jetty.setShards(shardList);
-    jetty.setDataDir(getDataDir(dataDir));
+    JettyConfig jettyconfig = JettyConfig.builder()
+        .setContext(context)
+        .stopAtShutdown(false)
+        .withServlets(getExtraServlets())
+        .withFilters(getExtraRequestFilters())
+        .withSSLConfig(sslConfig)
+        .build();
 
-    SocketProxy proxy = new SocketProxy(0, sslConfig == null ? false : sslConfig.isSSLMode());
+    Properties props = new Properties();
+    if (solrConfigOverride != null)
+      props.setProperty("solrconfig", solrConfigOverride);
+    if (schemaOverride != null)
+      props.setProperty("schema", schemaOverride);
+    if (shardList != null)
+      props.setProperty("shards", shardList);
+    if (dataDir != null)
+      props.setProperty("solr.data.dir", getDataDir(dataDir));
+    props.setProperty("coreRootDirectory", solrHome.toPath().resolve("cores").toAbsolutePath().toString());
+
+    JettySolrRunner jetty = new JettySolrRunner(solrHome.getPath(), props, jettyconfig);
+
+    SocketProxy proxy = new SocketProxy(0, sslConfig != null && sslConfig.isSSLMode());
     jetty.setProxyPort(proxy.getListenPort());
     jetty.start();
     proxy.open(jetty.getBaseUrl().toURI());
@@ -1167,11 +1211,7 @@ public abstract class AbstractFullDistribZkTestBase extends AbstractDistribZkTes
           long num = cjetty.client.solrClient.query(query).getResults()
               .getNumFound();
           System.err.println("DOCS:" + num);
-        } catch (SolrServerException e) {
-          System.err.println("error contacting client: " + e.getMessage()
-              + "\n");
-          continue;
-        } catch (SolrException e) {
+        } catch (SolrServerException | SolrException | IOException e) {
           System.err.println("error contacting client: " + e.getMessage()
               + "\n");
           continue;
@@ -1377,7 +1417,7 @@ public abstract class AbstractFullDistribZkTestBase extends AbstractDistribZkTes
 
   @Override
   protected QueryResponse queryServer(ModifiableSolrParams params)
-      throws SolrServerException {
+      throws SolrServerException, IOException {
 
     if (r.nextBoolean()) params.set("collection", DEFAULT_COLLECTION);
 

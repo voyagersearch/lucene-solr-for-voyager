@@ -17,6 +17,7 @@
 
 package org.apache.solr.client.solrj.embedded;
 
+import org.apache.solr.core.SolrCore;
 import org.apache.solr.servlet.LoadAdminUiServlet;
 import org.apache.solr.servlet.SolrDispatchFilter;
 import org.eclipse.jetty.server.Connector;
@@ -53,8 +54,10 @@ import java.io.File;
 import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.LinkedList;
+import java.util.List;
 import java.util.Properties;
 import java.util.Random;
 import java.util.SortedMap;
@@ -360,9 +363,26 @@ public class JettySolrRunner {
 
 
     // Host the solr admin interface
-    String[] check = new String[] {
-        "..", "../..", "../../.."
-    };
+    List<String> check = new ArrayList<>();
+    check.add("..");
+    check.add("../..");
+    check.add("../../..");
+    check.add("../../../..");
+
+    try {
+      URL main = SolrCore.class.getResource("SolrCore.class");
+      if ("file".equalsIgnoreCase(main.getProtocol())) {
+        File path = new File(main.getPath(), "../../../../../..").getCanonicalFile();
+        System.out.println( path.getAbsolutePath() );
+        
+        check.add(path.getAbsolutePath()+"/solr");
+        check.add(path.getAbsolutePath()+"/../solr");
+      }
+    }
+    catch(Exception ex) {
+      ex.printStackTrace();
+    }
+    
     for(String c : check ) {
       File f = new File(c+"/webapp/web/admin.html");
       if(f.exists()) {

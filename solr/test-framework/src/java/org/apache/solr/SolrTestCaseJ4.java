@@ -55,6 +55,7 @@ import org.apache.solr.core.SolrConfig;
 import org.apache.solr.core.SolrCore;
 import org.apache.solr.core.SolrResourceLoader;
 import org.apache.solr.core.SolrXmlConfig;
+import org.apache.solr.core.ZkContainer;
 import org.apache.solr.handler.UpdateRequestHandler;
 import org.apache.solr.request.LocalSolrQueryRequest;
 import org.apache.solr.request.SolrQueryRequest;
@@ -68,6 +69,7 @@ import org.apache.solr.util.AbstractSolrTestCase;
 import org.apache.solr.util.RevertDefaultThreadHandlerRule;
 import org.apache.solr.util.SSLTestConfig;
 import org.apache.solr.util.TestHarness;
+import org.apache.zookeeper.KeeperException;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
@@ -686,7 +688,21 @@ public abstract class SolrTestCaseJ4 extends LuceneTestCase {
    */
   public static void deleteCore() {
     log.info("###deleteCore" );
-    if (h != null) { h.close(); }
+    if (h != null) {
+      // If the test case set up Zk, it should still have it as available,
+      // otherwise the core close will just be unnecessarily delayed.
+      CoreContainer cc = h.getCoreContainer();
+      if (! cc.getCores().isEmpty() && cc.isZooKeeperAware()) {
+        try {
+          cc.getZkController().getZkClient().exists("/", false);
+        } catch (KeeperException e) {
+          log.error("Testing connectivity to ZK by checking for root path failed", e);
+          fail("Trying to tear down a ZK aware core container with ZK not reachable");
+        } catch (InterruptedException ignored) {}
+      }
+
+      h.close();
+    }
 
     if (factoryProp == null) {
       System.clearProperty("solr.directoryFactory");
@@ -750,7 +766,7 @@ public abstract class SolrTestCaseJ4 extends LuceneTestCase {
     try {
       String m = (null == message) ? "" : message + " ";
       String response = h.query(req);
-      
+
       if (req.getParams().getBool("facet", false)) {
         // add a test to ensure that faceting did not throw an exception
         // internally, where it would be added to facet_counts/exception
@@ -814,9 +830,9 @@ public abstract class SolrTestCaseJ4 extends LuceneTestCase {
   }
   /**
    * Validates a query matches some JSON test expressions and closes the
-   * query. The text expression is of the form path:JSON.  To facilitate
-   * easy embedding in Java strings, the JSON tests can have double quotes
-   * replaced with single quotes.
+   * query. The text expression is of the form path:JSON.  The Noggit JSON
+   * parser used accepts single quoted strings and bare strings to allow
+   * easy embedding in Java Strings.
    * <p>
    * Please use this with care: this makes it easy to match complete
    * structures, but doing so can result in fragile tests if you are
@@ -1129,22 +1145,15 @@ public abstract class SolrTestCaseJ4 extends LuceneTestCase {
     return Arrays.asList(docs);
   }
 
-  /** Converts "test JSON" and returns standard JSON.
-   *  Currently this only consists of changing unescaped single quotes to double quotes,
-   *  and escaped single quotes to single quotes.
-   *
-   * The primary purpose is to be able to easily embed JSON strings in a JAVA string
-   * with the best readability.
+  /** Converts "test JSON" strings into JSON parseable by our JSON parser.
+   *  For example, this method changed single quoted strings into double quoted strings before
+   *  the parser could natively handle them.
    *
    * This transformation is automatically applied to JSON test srings (like assertJQ).
    */
   public static String json(String testJSON) {
-    testJSON = nonEscapedSingleQuotePattern.matcher(testJSON).replaceAll("\"");
-    testJSON = escapedSingleQuotePattern.matcher(testJSON).replaceAll("'");
     return testJSON;
   }
-  private static Pattern nonEscapedSingleQuotePattern = Pattern.compile("(?<!\\\\)\'");
-  private static Pattern escapedSingleQuotePattern = Pattern.compile("\\\\\'");
 
 
   /** Creates JSON from a SolrInputDocument.  Doesn't currently handle boosts.

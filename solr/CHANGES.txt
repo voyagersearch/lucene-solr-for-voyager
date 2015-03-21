@@ -127,6 +127,22 @@ New Features
     json.facet={categories:{terms:{field:cat, sort:"x desc", facet:{x:"avg(price)", y:"sum(price)"}}}}
   (yonik)
 
+* SOLR-7217: HTTP POST body is auto-detected when the client is curl and the content
+  type is form data (curl's default), allowing users to use curl to send
+  JSON or XML without having to specify the content type. (yonik)
+
+* SOLR-6892: Update processors can now be top-level components and they can be
+  specified in request to create a new custom update chain (Noble Paul)
+
+* SOLR-7216: Solr JSON Request API:
+  - HTTP search requests can have a JSON body.
+  - JSON request can also be passed via the "json" parameter.
+  - Smart merging of multiple JSON parameters: ruery parameters starting with "json."
+    will be merged into the JSON request.
+  - Legacy query parameters can also be passed in the "params" block of
+    the JSON request.
+  (yonik)
+
 
 Bug Fixes
 ----------------------
@@ -193,8 +209,6 @@ Bug Fixes
 
 * SOLR-6682: Fix response when using EnumField with StatsComponent
   (Xu Zhang via hossman)
-
-* SOLR-6892: Improve the way update processors are used and make it simpler (Noble Paul)
 
 * SOLR-7109: Indexing threads stuck during network partition can put leader into down state.
   (Mark Miller, Anshum Gupta, Ramkumar Aiyengar, yonik, shalin)
@@ -279,6 +293,11 @@ Other Changes
   support after seeing no response exceptions. (Ishan Chattopadhyaya via Timothy Potter)
 
 * SOLR-7246: Speed up BasicZkTest, TestManagedResourceStorage (Ramkumar Aiyengar)
+
+* SOLR-7258: Forbid MessageFormat.format and MessageFormat single-arg constructor.
+  (shalin)
+
+* SOLR-7162: Remove unused SolrSortField interface. (yonik, Connor Warrington via shalin)
 
 ==================  5.0.0 ==================
 

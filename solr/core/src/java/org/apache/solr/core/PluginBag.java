@@ -27,11 +27,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 import org.apache.lucene.analysis.util.ResourceLoader;
 import org.apache.lucene.analysis.util.ResourceLoaderAware;
 import org.apache.solr.cloud.CloudUtil;
 import org.apache.solr.common.SolrException;
+import org.apache.solr.common.util.StrUtils;
 import org.apache.solr.handler.RequestHandlerBase;
 import org.apache.solr.handler.component.SearchComponent;
 import org.apache.solr.request.SolrRequestHandler;
@@ -48,20 +50,31 @@ import org.slf4j.LoggerFactory;
 public class PluginBag<T> implements AutoCloseable {
   public static Logger log = LoggerFactory.getLogger(PluginBag.class);
 
-  private Map<String, PluginHolder<T>> registry = new HashMap<>();
-  private Map<String, PluginHolder<T>> immutableRegistry = Collections.unmodifiableMap(registry);
+  private final Map<String, PluginHolder<T>> registry;
+  private final Map<String, PluginHolder<T>> immutableRegistry;
   private String def;
-  private Class klass;
+  private final Class klass;
   private SolrCore core;
-  private SolrConfig.SolrPluginInfo meta;
+  private final SolrConfig.SolrPluginInfo meta;
 
-  public PluginBag(Class<T> klass, SolrCore core) {
+  /** Pass needThreadSafety=true if plugins can be added and removed concurrently with lookups. */
+  public PluginBag(Class<T> klass, SolrCore core, boolean needThreadSafety) {
     this.core = core;
     this.klass = klass;
+    // TODO: since reads will dominate writes, we could also think about creating a new instance of a map each time it changes.
+    // Not sure how much benefit this would have over ConcurrentHashMap though
+    // We could also perhaps make this constructor into a factory method to return different implementations depending on thread safety needs.
+    this.registry = needThreadSafety ? new ConcurrentHashMap<String, PluginHolder<T>>() : new HashMap<String, PluginHolder<T>>();
+    this.immutableRegistry = Collections.unmodifiableMap(registry);
     meta = SolrConfig.classVsSolrPluginInfo.get(klass.getName());
     if (meta == null) {
       throw new SolrException(SolrException.ErrorCode.SERVER_ERROR, "Unknown Plugin : " + klass.getName());
     }
+  }
+
+  /** Constructs a non-threadsafe plugin registry */
+  public PluginBag(Class<T> klass, SolrCore core) {
+    this(klass, core, false);
   }
 
   static void initInstance(Object inst, PluginInfo info, SolrCore core) {
@@ -96,6 +109,7 @@ public class PluginBag<T> implements AutoCloseable {
   }
 
   boolean alias(String src, String target) {
+    if (src == null) return false;
     PluginHolder<T> a = registry.get(src);
     if (a == null) return false;
     PluginHolder<T> b = registry.get(target);
@@ -234,7 +248,7 @@ public class PluginBag<T> implements AutoCloseable {
    * subclasses may choose to lazily load the plugin
    */
   public static class PluginHolder<T> implements AutoCloseable {
-    protected T inst;
+    private T inst;
     protected final PluginInfo pluginInfo;
 
     public PluginHolder(PluginInfo info) {
@@ -256,8 +270,14 @@ public class PluginBag<T> implements AutoCloseable {
 
     @Override
     public void close() throws Exception {
-      if (inst != null && inst instanceof AutoCloseable) ((AutoCloseable) inst).close();
-
+      // TODO: there may be a race here.  One thread can be creating a plugin
+      // and another thread can come along and close everything (missing the plugin
+      // that is in the state of being created and will probably never have close() called on it).
+      // can close() be called concurrently with other methods?
+      if (isLoaded()) {
+        T myInst = get();
+        if (myInst != null && myInst instanceof AutoCloseable) ((AutoCloseable) myInst).close();
+      }
     }
 
     public String getClassName() {
@@ -272,6 +292,7 @@ public class PluginBag<T> implements AutoCloseable {
    * the Plugin is initialized and returned.
    */
   public static class LazyPluginHolder<T> extends PluginHolder<T> {
+    private volatile T lazyInst;
     private final SolrConfig.SolrPluginInfo pluginMeta;
     protected SolrException solrException;
     private final SolrCore core;
@@ -293,36 +314,45 @@ public class PluginBag<T> implements AutoCloseable {
     }
 
     @Override
-    public T get() {
-      if (inst != null) return inst;
-      if (solrException != null) throw solrException;
-      createInst();
-      registerMBean(inst, core, pluginInfo.name);
-      return inst;
+    public boolean isLoaded() {
+      return lazyInst != null;
     }
 
-    protected synchronized void createInst() {
-      if (inst != null) return;
+    @Override
+    public T get() {
+      if (lazyInst != null) return lazyInst;
+      if (solrException != null) throw solrException;
+      if (createInst()) {
+        // check if we created the instance to avoid registering it again
+        registerMBean(lazyInst, core, pluginInfo.name);
+      }
+      return lazyInst;
+    }
+
+    private synchronized boolean createInst() {
+      if (lazyInst != null) return false;
       log.info("Going to create a new {} with {} ", pluginMeta.tag, pluginInfo.toString());
       if (resourceLoader instanceof MemClassLoader) {
         MemClassLoader loader = (MemClassLoader) resourceLoader;
         loader.loadJars();
       }
       Class<T> clazz = (Class<T>) pluginMeta.clazz;
-      inst = core.createInstance(pluginInfo.className, clazz, pluginMeta.tag, null, resourceLoader);
-      initInstance(inst, pluginInfo, core);
-      if (inst instanceof SolrCoreAware) {
-        SolrResourceLoader.assertAwareCompatibility(SolrCoreAware.class, inst);
-        ((SolrCoreAware) inst).inform(core);
+      T localInst = core.createInstance(pluginInfo.className, clazz, pluginMeta.tag, null, resourceLoader);
+      initInstance(localInst, pluginInfo, core);
+      if (localInst instanceof SolrCoreAware) {
+        SolrResourceLoader.assertAwareCompatibility(SolrCoreAware.class, localInst);
+        ((SolrCoreAware) localInst).inform(core);
       }
-      if (inst instanceof ResourceLoaderAware) {
-        SolrResourceLoader.assertAwareCompatibility(ResourceLoaderAware.class, inst);
+      if (localInst instanceof ResourceLoaderAware) {
+        SolrResourceLoader.assertAwareCompatibility(ResourceLoaderAware.class, localInst);
         try {
-          ((ResourceLoaderAware) inst).inform(core.getResourceLoader());
+          ((ResourceLoaderAware) localInst).inform(core.getResourceLoader());
         } catch (IOException e) {
           throw new SolrException(SolrException.ErrorCode.SERVER_ERROR, "error initializing component", e);
         }
       }
+      lazyInst = localInst;  // only assign the volatile until after the plugin is completely ready to use
+      return true;
     }
 
 
@@ -415,7 +445,7 @@ public class PluginBag<T> implements AutoCloseable {
           throw new SolrException(SolrException.ErrorCode.SERVER_ERROR, "No public keys are available in ZK to verify signature for runtime lib  " + name);
         }
       } else if (sig == null) {
-        throw new SolrException(SolrException.ErrorCode.SERVER_ERROR, MessageFormat.format("runtimelib {0} should be signed with one of the keys in ZK /keys/exe ", name));
+        throw new SolrException(SolrException.ErrorCode.SERVER_ERROR, StrUtils.formatString("runtimelib {0} should be signed with one of the keys in ZK /keys/exe ", name));
       }
 
       try {

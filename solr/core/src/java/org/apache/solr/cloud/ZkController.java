@@ -1140,7 +1140,7 @@ public final class ZkController {
         if (ZkStateReader.ACTIVE.equals(state)) {
           // trying to become active, so leader-initiated state must be recovering
           if (ZkStateReader.RECOVERING.equals(lirState)) {
-            updateLeaderInitiatedRecoveryState(collection, shardId, coreNodeName, ZkStateReader.ACTIVE, null);
+            updateLeaderInitiatedRecoveryState(collection, shardId, coreNodeName, ZkStateReader.ACTIVE, null, true);
           } else if (ZkStateReader.DOWN.equals(lirState)) {
             throw new SolrException(ErrorCode.INVALID_STATE, 
                 "Cannot publish state of core '"+cd.getName()+"' as active without recovering first!");
@@ -1148,7 +1148,7 @@ public final class ZkController {
         } else if (ZkStateReader.RECOVERING.equals(state)) {
           // if it is currently DOWN, then trying to enter into recovering state is good
           if (ZkStateReader.DOWN.equals(lirState)) {
-            updateLeaderInitiatedRecoveryState(collection, shardId, coreNodeName, ZkStateReader.RECOVERING, null);
+            updateLeaderInitiatedRecoveryState(collection, shardId, coreNodeName, ZkStateReader.RECOVERING, null, true);
           }
         }
       }
@@ -1526,21 +1526,33 @@ public final class ZkController {
       CloudDescriptor cloudDesc = cd.getCloudDescriptor();
       String coreNodeName = cloudDesc.getCoreNodeName();
       assert coreNodeName != null;
-      if (cloudDesc.getShardId() == null) throw new SolrException(ErrorCode.SERVER_ERROR ,"No shard id for :" + cd);
+      if (cloudDesc.getShardId() == null) {
+        throw new SolrException(ErrorCode.SERVER_ERROR ,"No shard id for :" + cd);
+      }
       long endTime = System.nanoTime() + TimeUnit.NANOSECONDS.convert(3, TimeUnit.SECONDS);
-      String errMessage= null;
-      for (; System.nanoTime()<endTime; ) {
-        Thread.sleep(100);
-        errMessage = null;
+      String errMessage = null;
+      while (System.nanoTime() < endTime) {
         Slice slice = zkStateReader.getClusterState().getSlice(cd.getCollectionName(), cloudDesc.getShardId());
         if (slice == null) {
           errMessage = "Invalid slice : " + cloudDesc.getShardId();
           continue;
         }
-        if (slice.getReplica(coreNodeName) != null) return;
+        if (slice.getReplica(coreNodeName) != null) {
+          Replica replica = slice.getReplica(coreNodeName);
+          String baseUrl = replica.getStr(BASE_URL_PROP);
+          String coreName = replica.getStr(CORE_NAME_PROP);
+          if (baseUrl.equals(this.baseURL) && coreName.equals(cd.getName())) {
+            return;
+          } else {
+            errMessage = "replica with coreNodeName " + coreNodeName + " exists but with a different name or base_url";
+          }
+        }
+        Thread.sleep(100);
       }
-      if(errMessage == null)  errMessage = " no_such_replica in clusterstate ,replicaName :  " + coreNodeName;
-      throw new SolrException(ErrorCode.SERVER_ERROR,errMessage + "state : "+ zkStateReader.getClusterState().getCollection(cd.getCollectionName()));
+      if (errMessage == null) {
+        errMessage = "replica " + coreNodeName + " is not present in cluster state";
+      }
+      throw new SolrException(ErrorCode.SERVER_ERROR, errMessage + ". state : "+ zkStateReader.getClusterState().getCollection(cd.getCollectionName()));
     }
   }
 
@@ -1892,8 +1904,9 @@ public final class ZkController {
    * false means the node is not live either, so no point in trying to send recovery commands
    * to it.
    */
-  public boolean ensureReplicaInLeaderInitiatedRecovery(final String collection, 
-      final String shardId, final ZkCoreNodeProps replicaCoreProps, boolean forcePublishState, String leaderCoreNodeName)
+  public boolean ensureReplicaInLeaderInitiatedRecovery(
+      final String collection, final String shardId, final ZkCoreNodeProps replicaCoreProps,
+      String leaderCoreNodeName, boolean forcePublishState, boolean retryOnConnLoss)
           throws KeeperException, InterruptedException 
   {
     final String replicaUrl = replicaCoreProps.getCoreUrl();
@@ -1903,10 +1916,10 @@ public final class ZkController {
 
     if (shardId == null)
       throw new IllegalArgumentException("shard parameter cannot be null for starting leader-initiated recovery for replica: "+replicaUrl);
-    
+
     if (replicaUrl == null)
       throw new IllegalArgumentException("replicaUrl parameter cannot be null for starting leader-initiated recovery");
-    
+
     // First, determine if this replica is already in recovery handling
     // which is needed because there can be many concurrent errors flooding in
     // about the same replica having trouble and we only need to send the "needs"
@@ -1928,7 +1941,7 @@ public final class ZkController {
       // we only really need to try to send the recovery command if the node itself is "live"
       if (getZkStateReader().getClusterState().liveNodesContain(replicaNodeName)) {
         // create a znode that requires the replica needs to "ack" to verify it knows it was out-of-sync
-        updateLeaderInitiatedRecoveryState(collection, shardId, replicaCoreNodeName, ZkStateReader.DOWN, leaderCoreNodeName);
+        updateLeaderInitiatedRecoveryState(collection, shardId, replicaCoreNodeName, ZkStateReader.DOWN, leaderCoreNodeName, retryOnConnLoss);
         replicasInLeaderInitiatedRecovery.put(replicaUrl,
             getLeaderInitiatedRecoveryZnodePath(collection, shardId, replicaCoreNodeName));
         log.info("Put replica core={} coreNodeName={} on "+
@@ -2025,7 +2038,7 @@ public final class ZkController {
   }
   
   private void updateLeaderInitiatedRecoveryState(String collection, String shardId, String coreNodeName, String state,
-                                                  String leaderCoreNodeName) {
+                                                  String leaderCoreNodeName, boolean retryOnConnLoss) {
     if (collection == null || shardId == null || coreNodeName == null) {
       log.warn("Cannot set leader-initiated recovery state znode to "+state+" using: collection="+collection+
           "; shardId="+shardId+"; coreNodeName="+coreNodeName);

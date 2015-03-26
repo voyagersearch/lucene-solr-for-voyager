@@ -143,6 +143,10 @@ New Features
     the JSON request.
   (yonik)
 
+* SOLR-7245: Temporary ZK election or connection loss should not stall indexing
+  due to leader initiated recovery (Ramkumar Aiyengar)
+
+* SOLR-6350: StatsComponent now supports Percentiles (Xu Zhang, hossman)
 
 Bug Fixes
 ----------------------
@@ -212,6 +216,25 @@ Bug Fixes
 
 * SOLR-7109: Indexing threads stuck during network partition can put leader into down state.
   (Mark Miller, Anshum Gupta, Ramkumar Aiyengar, yonik, shalin)
+  
+* SOLR-7092: Stop the HDFS lease recovery retries in HdfsTransactionLog on close and try
+  to avoid lease recovery on closed files. (Mark Miller)
+
+* SOLR-7285: ActionThrottle will not pause if getNanoTime first returns 0.
+  (Mark Miller, Gregory Chanan)
+  
+* SOLR-7141: RecoveryStrategy: Raise time that we wait for any updates from the leader before
+  they saw the recovery state to have finished. (Mark Miller)
+
+* SOLR-7248: In legacyCloud=false mode we should check if the core was hosted on the same node before registering it
+  (Varun Thacker, Noble Paul, Mark Miller)
+
+* SOLR-7294: Migrate API fails with 'Invalid status request: notfoundretried 6times' message.
+  (Jessica Cheng Mallet, shalin)
+
+* SOLR-7254: Make an invalid negative start/rows throw a HTTP 400 error (Bad Request) instead
+  of causing a 500 error.  (Ramkumar Aiyengar, Hrishikesh Gadre, yonik)
+ 
 
 Optimizations
 ----------------------
@@ -298,6 +321,8 @@ Other Changes
   (shalin)
 
 * SOLR-7162: Remove unused SolrSortField interface. (yonik, Connor Warrington via shalin)
+
+* SOLR-6414: Update to Hadoop 2.6.0. (Mark Miller)
 
 ==================  5.0.0 ==================
 

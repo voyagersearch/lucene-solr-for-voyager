@@ -47,6 +47,7 @@ public class TestJsonRequest extends SolrTestCaseHS {
     JSONTestUtil.failRepeatedKeys = false;
     if (servers != null) {
       servers.stop();
+      servers = null;
     }
   }
 

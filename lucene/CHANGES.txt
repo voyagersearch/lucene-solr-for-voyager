@@ -82,7 +82,7 @@ Optimizations
 * LUCENE-6198: Added the TwoPhaseIterator API, exposed on scorers which
   is for now only used on phrase queries and conjunctions in order to check
   positions lazily if the phrase query is in a conjunction with other queries.
-  (Robert Muir, Adrien Grand)
+  (Robert Muir, Adrien Grand, David Smiley)
 
 * LUCENE-6244, LUCENE-6251: All boolean queries but those that have a
   minShouldMatch > 1 now either propagate or take advantage of the two-phase
@@ -184,6 +184,9 @@ API Changes
   SegmentInfos.totalDocCount -> .totalMaxDoc, MergeInfo.totalDocCount
   -> .totalMaxDoc and MergePolicy.OneMerge.totalDocCount ->
   .totalMaxDoc (Adrien Grand, Robert Muir, Mike McCandless)
+
+* LUCENE-6367: PrefixQuery now subclasses AutomatonQuery, removing the
+  specialized PrefixTermsEnum.  (Robert Muir, Mike McCandless)
 
 Other
 

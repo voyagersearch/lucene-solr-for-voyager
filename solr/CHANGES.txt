@@ -29,7 +29,7 @@ Upgrading from Solr 5.0
   addition to SolrServerException, to bring them in line with the update
   functions.
 
-* SolrRequest.process() is now final.  Subclasses should instead be parametrized
+* SolrRequest.process() is now final.  Subclasses should instead be parameterized
   by their corresponding SolrResponse type, and implement createResponse()
 
 * The signature of SolrDispatchFilter.createCoreContainer() has changed to take
@@ -37,6 +37,10 @@ Upgrading from Solr 5.0
 
 * Deprecated the 'lib' option added to create-requesthandler as part of SOLR-6801 in 5.0 release.
   Please use the add-runtimelib command
+  
+* Tika's runtime dependency of 'jhighlight' was removed as the latter was found to 
+  contain some LGPL-only code. Until that's resolved by Tika, you can download the
+  .jar yourself and place it under contrib/extraction/lib.  
 
 Detailed Change List
 ----------------------
@@ -126,6 +130,9 @@ New Features
     json.facet={count1:{query:"price:[10 TO 20]"}, count2:{query:"color:blue AND popularity:[0 TO 50]"} }
     json.facet={categories:{terms:{field:cat, sort:"x desc", facet:{x:"avg(price)", y:"sum(price)"}}}}
   (yonik)
+  
+* SOLR-6141: Schema API: Remove fields, dynamic fields, field types and copy
+  fields; and replace fields, dynamic fields and field types. (Steve Rowe)
 
 * SOLR-7217: HTTP POST body is auto-detected when the client is curl and the content
   type is form data (curl's default), allowing users to use curl to send
@@ -147,6 +154,36 @@ New Features
   due to leader initiated recovery (Ramkumar Aiyengar)
 
 * SOLR-6350: StatsComponent now supports Percentiles (Xu Zhang, hossman)
+
+* SOLR-7306: Percentiles support for the new facet module.  Percentiles
+  can be calculated for all facet buckets and field faceting can sort
+  by percentile values.
+  Examples:
+    json.facet={ median_age : "percentile(age,50)" }
+    json.facet={ salary_percentiles : "percentile(salary,25,50,75)" }
+  (yonik)
+
+* SOLR-7307: EmbeddedSolrServer can now be started up by passing a path to a
+  solr home directory, or a NodeConfig object (Alan Woodward, Mike Drob)
+
+* SOLR-1387: Add facet.contains and facet.contains.ignoreCase options (Tom Winch
+  via Alan Woodward)
+
+* SOLR-7082: Streaming Aggregation for SolrCloud (Joel bernstein, Yonik Seeley)
+
+* SOLR-7212: Parameter substitution / macro expansion across entire request.
+  Substitution can contain further expansions and default values are supported.
+  Example: q=price:[ ${low:0} TO ${high} ]&low=100&high=200
+  (yonik)
+
+* SOLR-7226: Make /query/* jmx/* , requestDispatcher/*, <listener> <initParams>
+  properties in solrconfig.xml editable (Noble Paul)
+
+* SOLR-7240: '/' redirects to '/solr/' for convinience (Martijn Koster, hossman)
+
+* SOLR-5911: Added payload support for term vectors. New "termPayloads" option for fields
+  / types in the schema, and "tv.payloads" param for the term vector component.
+  (Mike McCandless, David Smiley)
 
 Bug Fixes
 ----------------------
@@ -234,7 +271,20 @@ Bug Fixes
 
 * SOLR-7254: Make an invalid negative start/rows throw a HTTP 400 error (Bad Request) instead
   of causing a 500 error.  (Ramkumar Aiyengar, Hrishikesh Gadre, yonik)
- 
+
+* SOLR-7305: BlendedInfixLookupFactory swallows root IOException when it occurs.
+  (Stephan Lagraulet via shalin)
+
+* SOLR-7293: Fix bug that Solr server does not listen on IPv6 interfaces by default.
+  (Uwe Schindler, Sebastian Pesman)
+
+* SOLR-7298: Fix Collections API calls (SolrJ) to not add name parameter when not needed.
+  (Shai Erera, Anshum Gupta)
+
+* SOLR-7134: Replication can still cause index corruption. (Mark Miller, shalin, Mike Drob)
+
+* SOLR-7309: Make bin/solr, bin/post work when Solr installation directory contains spaces
+  (Ramkumar Aiyengar, Martijn Koster)
 
 Optimizations
 ----------------------
@@ -324,12 +374,20 @@ Other Changes
 
 * SOLR-6414: Update to Hadoop 2.6.0. (Mark Miller)
 
+* SOLR-6673: MDC based logging of collection, shard, replica, core
+  (Ishan Chattopadhyaya , Noble Paul)
+
+* SOLR-7291: Test indexing on ZK disconnect with ChaosMonkey tests (Ramkumar Aiyengar)
+
+* SOLR-7203: Remove buggy no-op retry code in HttpSolrClient (Alan Woodward,
+  Mark Miller, Greg Solovyev)
+
 ==================  5.0.0 ==================
 
 Consult the LUCENE_CHANGES.txt file for additional, low level, changes in this release.
 
 NOTE: Solr 5.0 only supports creating and removing SolrCloud collections through
-      the collections API, unlike previous versions. While not using the 
+      the collections API, unlike previous versions. While not using the
       collections API may still work in 5.0, it is unsupported, not recommended,
       and the behavior will change in a 5.x release.
 

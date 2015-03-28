@@ -37,6 +37,10 @@ import org.apache.solr.schema.SchemaField;
 import org.apache.solr.search.ReturnFields;
 import org.apache.solr.search.SolrReturnFields;
 
+import com.spatial4j.core.io.ShapeIO;
+import com.spatial4j.core.io.ShapeWriter;
+import com.spatial4j.core.shape.Shape;
+
 /**
  *
  */
@@ -631,6 +635,16 @@ abstract class NaNFloatWriter extends JSONWriter {
       writer.write(getInf());
     } else {
       writeDouble(name, Double.toString(val));
+    }
+  }
+  
+  @Override
+  public void writeShape(String name, Shape val) throws IOException {
+    ShapeWriter enc = val.getContext().getWriter(ShapeIO.GeoJSON);
+    if(enc!=null) {
+      enc.write(writer, val);
+    } else {
+      super.writeShape(name, val);
     }
   }
 }

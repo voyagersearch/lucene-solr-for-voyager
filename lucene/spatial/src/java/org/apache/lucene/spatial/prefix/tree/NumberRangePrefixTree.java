@@ -355,6 +355,11 @@ public abstract class NumberRangePrefixTree extends SpatialPrefixTree {
       result = 31 * result + maxLV.hashCode();
       return result;
     }
+
+    @Override
+    public SpatialContext getContext() {
+      return ctx;
+    }
   }// class SpanUnitsNRShape
 
   //
@@ -973,6 +978,11 @@ public abstract class NumberRangePrefixTree extends SpatialPrefixTree {
       if (getLevel() == 0)
         return pretty;
       return toStringUnitRaw(this) + (isLeaf() ? "•" : "") + " " + pretty;
+    }
+
+    @Override
+    public SpatialContext getContext() {
+      return ctx;
     }
 
   } // END OF NRCell

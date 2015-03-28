@@ -31,6 +31,7 @@
   <caches lockStrategy="artifact-lock" resolutionCacheDir="${common.build.dir}/ivy-resolution-cache" /> 
 
   <resolvers>
+    <ibiblio name="voyager" root="http://s3.amazonaws.com/voyager.maven/" m2compatible="true" />
     <ibiblio name="sonatype-releases" root="https://oss.sonatype.org/content/repositories/releases" m2compatible="true" />
     <ibiblio name="maven.restlet.org" root="http://maven.restlet.org" m2compatible="true" />
     <ibiblio name="releases.cloudera.com" root="http://repository.cloudera.com/content/repositories/releases" m2compatible="true" />
@@ -56,6 +57,7 @@
       <resolver ref="local"/>
       <!-- <resolver ref="local-maven-2" /> -->
       <resolver ref="main"/>
+      <resolver ref="voyager" />
       <resolver ref="maven.restlet.org" />
       <resolver ref="sonatype-releases" />
       <resolver ref="releases.cloudera.com"/>

@@ -132,6 +132,16 @@
         <updatePolicy>never</updatePolicy>
       </snapshots>
     </repository>
+    <repository>
+      <id>voyager</id>
+      <url>http://s3.amazonaws.com/voyager.maven/</url>
+      <snapshots>
+        <enabled>false</enabled>
+      </snapshots>
+      <releases>
+        <enabled>true</enabled>
+      </releases>
+    </repository> 
   </repositories>
   <dependencyManagement>
     <dependencies>

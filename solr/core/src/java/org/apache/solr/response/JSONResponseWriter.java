@@ -591,6 +591,17 @@ class JSONWriter extends TextResponseWriter {
     writeStr(name, val, false);
   }
 
+  
+  @Override
+  public void writeShape(String name, Shape val) throws IOException {
+    ShapeWriter enc = val.getContext().getWriter(ShapeIO.GeoJSON);
+    if(enc!=null) {
+      enc.write(writer, val);
+    } else {
+      super.writeShape(name, val);
+    }
+  }
+
   private static char[] hexdigits = {'0','1','2','3','4','5','6','7','8','9','a','b','c','d','e','f'};
   protected static void unicodeEscape(Appendable out, int ch) throws IOException {
     out.append('\\');
@@ -635,16 +646,6 @@ abstract class NaNFloatWriter extends JSONWriter {
       writer.write(getInf());
     } else {
       writeDouble(name, Double.toString(val));
-    }
-  }
-  
-  @Override
-  public void writeShape(String name, Shape val) throws IOException {
-    ShapeWriter enc = val.getContext().getWriter(ShapeIO.GeoJSON);
-    if(enc!=null) {
-      enc.write(writer, val);
-    } else {
-      super.writeShape(name, val);
     }
   }
 }

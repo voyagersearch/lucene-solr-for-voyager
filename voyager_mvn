@@ -3,7 +3,7 @@ ant clean-maven-build
 # Replace the revision in:
 # dev-tools/maven/pom.xml.template:          <revisionOnScmFailure>NO-REVISION-AVAILABLE</revisionOnScmFailure>
 
-REV="$(git describe)"
+REV="$(git describe --always)"
 echo "${REV}"
 sed -i.bak 's/NO-REVISION-AVAILABLE/'"${REV}"'/' dev-tools/maven/pom.xml.template 
 rm dev-tools/maven/pom.xml.template.bak

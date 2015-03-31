@@ -9,7 +9,7 @@ sed -i.bak 's/NO-REVISION-AVAILABLE/'"${REV}"'/' dev-tools/maven/pom.xml.templat
 rm dev-tools/maven/pom.xml.template.bak
 
 # now get the poms with out special version
-ant -Dversion=5.1.0-VG4 get-maven-poms
+ant -Dversion=5.1.0-VG5 get-maven-poms
 cd maven-build
 mvn -DskipTests source:jar-no-fork install
 

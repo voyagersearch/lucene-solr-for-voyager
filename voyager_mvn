@@ -5,6 +5,7 @@ ant clean-maven-build
 
 REV="$(git describe --always)"
 echo "${REV}"
+git checkout dev-tools/maven/pom.xml.template
 sed -i.bak 's/NO-REVISION-AVAILABLE/'"${REV}"'/' dev-tools/maven/pom.xml.template 
 rm dev-tools/maven/pom.xml.template.bak
 

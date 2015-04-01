@@ -3,6 +3,22 @@ Lucene Change Log
 For more information on past and future Lucene versions, please see:
 http://s.apache.org/luceneversions
 
+======================= Lucene 5.2.0 =======================
+
+New Features
+
+* LUCENE-6308: Span queries now share document conjunction/intersection
+  code with boolean queries, and use two-phased iterators for
+  faster intersection by avoiding loading positions in certain cases.
+  (Paul Elschot, Robert Muir via Mike McCandless)
+
+Optimizations
+
+* LUCENE-6379: IndexWriter.deleteDocuments(Query...) now detects if
+  one of the queries is MatchAllDocsQuery and just invokes the much
+  faster IndexWriter.deleteAll in that case (Robert Muir, Adrien
+  Grand, Mike McCandless)
+
 ======================= Lucene 5.1.0 =======================
 
 New Features

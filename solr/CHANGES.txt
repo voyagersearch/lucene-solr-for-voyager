@@ -19,6 +19,10 @@ Versions of Major Components
 Upgrading from Solr 5.1
 -----------------------
 
+* SOLR-7325: Slice.getState() now returns a State enum instead of a String. This helps
+  clarify the states a Slice can be in, as well comparing the state of a Slice.
+  (Shai Erera)
+
 Detailed Change List
 ----------------------
 
@@ -28,6 +32,8 @@ New Features
 Bug Fixes
 ----------------------
 
+* SOLR-6709: Fix QueryResponse to deal with the "expanded" section when using the XMLResponseParser
+  (Varun Thacker, Joel Bernstein)
 Optimizations
 ----------------------
 
@@ -412,6 +418,10 @@ Other Changes
 
 * SOLR-7203: Remove buggy no-op retry code in HttpSolrClient (Alan Woodward,
   Mark Miller, Greg Solovyev)
+
+* SOLR-7202: Remove deprecated string action types in Overseer and OverseerCollectionProcessor -
+  "deletecollection", "createcollection", "reloadcollection", "removecollection", "removeshard".
+  (Varun Thacker, shalin)
 
 ==================  5.0.0 ==================
 
@@ -1190,10 +1200,6 @@ Other Changes
 
 * SOLR-6227: Avoid spurious failures of ChaosMonkeySafeLeaderTest by ensuring there's
   at least one jetty to kill. (shalin)
-
-* SOLR-7202: Remove deprecated string action types in Overseer and OverseerCollectionProcessor -
-  "deletecollection", "createcollection", "reloadcollection", "removecollection", "removeshard".
-  (Varun Thacker, shalin)
 
 ==================  4.10.4 ==================
 

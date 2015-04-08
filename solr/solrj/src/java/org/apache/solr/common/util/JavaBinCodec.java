@@ -23,6 +23,11 @@ import org.apache.solr.common.SolrDocumentList;
 import org.apache.solr.common.SolrInputDocument;
 import org.apache.solr.common.SolrInputField;
 
+import com.spatial4j.core.context.SpatialContext;
+import com.spatial4j.core.io.ShapeIO;
+import com.spatial4j.core.io.ShapeWriter;
+import com.spatial4j.core.shape.Shape;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -703,6 +708,10 @@ public class JavaBinCodec {
       return true;
     } else if (val == END_OBJ) {
       writeTag(END);
+      return true;
+    } else if (val instanceof Shape) {
+      Shape shp = (Shape)val;
+      writeStr(shp.getContext().toString(shp));
       return true;
     }
     return false;

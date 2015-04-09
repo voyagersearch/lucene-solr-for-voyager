@@ -7,10 +7,23 @@ http://s.apache.org/luceneversions
 
 New Features
 
-* LUCENE-6308: Span queries now share document conjunction/intersection
+* LUCENE-6308, LUCENE-6385, LUCENE-6391: Span queries now share 
+  document conjunction/intersection
   code with boolean queries, and use two-phased iterators for
   faster intersection by avoiding loading positions in certain cases.
-  (Paul Elschot, Robert Muir via Mike McCandless)
+  (Paul Elschot, Terry Smith, Robert Muir via Mike McCandless)
+  
+* LUCENE-6393: Add two-phase support to SpanPositionCheckQuery
+  and its subclasses: SpanPositionRangeQuery, SpanPayloadCheckQuery, 
+  SpanNearPayloadCheckQuery, SpanFirstQuery. (Paul Elschot, Robert Muir)
+
+* LUCENE-6352: Added a new query time join to the join module that uses
+  global ordinals, which is faster for subsequent joins between reopens.
+  (Martijn van Groningen, Adrien Grand)
+
+* LUCENE-5879: Added experimental auto-prefix terms to BlockTree terms
+  dictionary, exposed as AutoPrefixPostingsFormat (Adrien Grand,
+  Uwe Schindler, Robert Muir, Mike McCandless)
 
 Optimizations
 
@@ -18,6 +31,9 @@ Optimizations
   one of the queries is MatchAllDocsQuery and just invokes the much
   faster IndexWriter.deleteAll in that case (Robert Muir, Adrien
   Grand, Mike McCandless)
+
+* LUCENE-6388: Optimize SpanNearQuery when payloads are not present.
+  (Robert Muir)
 
 Bug Fixes
 
@@ -28,6 +44,9 @@ API Changes
 
 * LUCENE-6377: SearcherFactory#newSearcher now accepts the previous reader
   to simplify warming logic during opening new searchers. (Simon Willnauer)
+
+* LUCENE-6410: Removed unused "reuse" parameter to
+  Terms.iterator. (Robert Muir, Mike McCandless)
 
 ======================= Lucene 5.1.0 =======================
 
@@ -86,6 +105,13 @@ Bug Fixes
 * LUCENE-6381: Add defensive wait time limit in
   DocumentsWriterStallControl to prevent hangs during indexing if we
   miss a .notify/All somewhere (Mike McCandless)
+
+* LUCENE-6386: Correct IndexWriter.forceMerge documentation to state
+  that up to 3X (X = current index size) spare disk space may be needed
+  to complete forceMerge(1).  (Robert Muir, Shai Erera, Mike McCandless)
+
+* LUCENE-6395: Seeking by term ordinal was failing to set the term's
+  bytes in MemoryIndex (Mike McCandless)
 
 Optimizations
 
@@ -160,7 +186,7 @@ API Changes
 * LUCENE-6218, LUCENE-6220: Add Collector.needsScores() and needsScores
   parameter to Query.createWeight(). (Robert Muir, Adrien Grand)
 
-* LUCENE-4524, LUCENE-6246, LUCENE-6256: Merge DocsEnum and DocsAndPositionsEnum
+* LUCENE-4524, LUCENE-6246, LUCENE-6256, LUCENE-6271: Merge DocsEnum and DocsAndPositionsEnum
   into a single PostingsEnum iterator.  TermsEnum.docs() and TermsEnum.docsAndPositions()
   are replaced by TermsEnum.postings(). 
   (Alan Woodward, Simon Willnauer, Robert Muir, Ryan Ernst)

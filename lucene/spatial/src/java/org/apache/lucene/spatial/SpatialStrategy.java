@@ -31,7 +31,6 @@ import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.spatial.query.SpatialArgs;
-import org.apache.solr.search.SpatialOptions;
 
 /**
  * The SpatialStrategy encapsulates an approach to indexing and searching based

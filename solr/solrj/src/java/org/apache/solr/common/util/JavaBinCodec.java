@@ -711,7 +711,7 @@ public class JavaBinCodec {
       return true;
     } else if (val instanceof Shape) {
       Shape shp = (Shape)val;
-      writeStr(shp.getContext().toString(shp));
+      writeStr(shp.getContext().getFormats().getWktWriter().toString(shp));
       return true;
     }
     return false;

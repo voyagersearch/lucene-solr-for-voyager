@@ -594,7 +594,7 @@ class JSONWriter extends TextResponseWriter {
   
   @Override
   public void writeShape(String name, Shape val) throws IOException {
-    ShapeWriter enc = val.getContext().getWriter(ShapeIO.GeoJSON);
+    ShapeWriter enc = val.getContext().getFormats().getGeoJsonWriter();
     if(enc!=null) {
       enc.write(writer, val);
     } else {

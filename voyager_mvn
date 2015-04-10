@@ -9,8 +9,19 @@ git checkout dev-tools/maven/pom.xml.template
 sed -i.bak 's/NO-REVISION-AVAILABLE/'"${REV}"'/' dev-tools/maven/pom.xml.template 
 rm dev-tools/maven/pom.xml.template.bak
 
+rm -rf /Users/ryan/workspace/m2-repository/org/apache/solr
+rm -rf /Users/ryan/workspace/m2-repository/org/apache/lucene
+
 # now get the poms with out special version
 ant -Dversion=5.2.0-VG2 get-maven-poms
 cd maven-build
 mvn -DskipTests source:jar-no-fork install
 
+mkdir /Users/ryan/workspace/m2-repository/org/apache/XXXX
+mv /Users/ryan/workspace/m2-repository/org/apache/solr /Users/ryan/workspace/m2-repository/org/apache/XXXX
+mv /Users/ryan/workspace/m2-repository/org/apache/lucene /Users/ryan/workspace/m2-repository/org/apache/XXXX
+
+find /Users/ryan/workspace/m2-repository/org/apache/XXXX -name "maven-metadata-local.xml" -exec rm -rf {} \;
+find /Users/ryan/workspace/m2-repository/org/apache/XXXX -name "_maven.repositories" -exec rm -rf {} \;
+
+open /Users/ryan/workspace/m2-repository/org/apache/XXXX

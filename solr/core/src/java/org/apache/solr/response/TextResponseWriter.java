@@ -283,7 +283,7 @@ public abstract class TextResponseWriter {
 
   /** Use WKT to write the shape **/
   public void writeShape(String name, Shape val) throws IOException {
-    ShapeWriter enc = val.getContext().getWriter(ShapeIO.WKT);
+    ShapeWriter enc = val.getContext().getFormats().getWktWriter();
     if(enc!=null) {
       writeStr(name, enc.toString(val), true);
     }

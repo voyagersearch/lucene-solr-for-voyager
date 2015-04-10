@@ -20,12 +20,14 @@ package org.apache.lucene.spatial.bbox;
 import java.io.IOException;
 
 import com.carrotsearch.randomizedtesting.annotations.Repeat;
+import com.spatial4j.core.SpatialPredicate;
 import com.spatial4j.core.context.SpatialContext;
 import com.spatial4j.core.context.SpatialContextFactory;
 import com.spatial4j.core.distance.DistanceUtils;
 import com.spatial4j.core.shape.Rectangle;
 import com.spatial4j.core.shape.Shape;
 import com.spatial4j.core.shape.impl.RectangleImpl;
+
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
@@ -33,7 +35,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.spatial.SpatialMatchConcern;
 import org.apache.lucene.spatial.prefix.RandomSpatialOpStrategyTestCase;
 import org.apache.lucene.spatial.query.SpatialArgs;
-import org.apache.lucene.spatial.query.SpatialOperation;
 import org.apache.lucene.spatial.util.ShapeAreaValueSource;
 import org.junit.Ignore;
 import org.junit.Test;
@@ -115,8 +116,8 @@ public class TestBBoxStrategy extends RandomSpatialOpStrategyTestCase {
       fieldType.setDocValuesType(DocValuesType.NONE);
       bboxStrategy.setFieldType(fieldType);
     }
-    for (SpatialOperation operation : SpatialOperation.values()) {
-      if (operation == SpatialOperation.Overlaps)
+    for (SpatialPredicate operation : SpatialPredicate.values()) {
+      if (operation == SpatialPredicate.Overlaps)
         continue;//unsupported
       testOperationRandomShapes(operation);
 
@@ -130,7 +131,7 @@ public class TestBBoxStrategy extends RandomSpatialOpStrategyTestCase {
     setupGeo();
     testOperation(
         ctx.makeRectangle(160, 180, -10, 10),
-        SpatialOperation.Intersects,
+        SpatialPredicate.Intersects,
         ctx.makeRectangle(-180, -160, -10, 10), true);
   }
 
@@ -139,7 +140,7 @@ public class TestBBoxStrategy extends RandomSpatialOpStrategyTestCase {
     setupGeo();
     testOperation(
         ctx.makeRectangle(-180, 180, -10, 10),
-        SpatialOperation.Intersects,
+        SpatialPredicate.Intersects,
         ctx.makeRectangle(180, 180, -10, 10), true);
   }
 
@@ -148,7 +149,7 @@ public class TestBBoxStrategy extends RandomSpatialOpStrategyTestCase {
     setupGeo();
     testOperation(
         ctx.makeRectangle(180, 180, -10, 10),
-        SpatialOperation.IsWithin,
+        SpatialPredicate.IsWithin,
         ctx.makeRectangle(-180, -100, -10, 10), true);
   }
 
@@ -157,7 +158,7 @@ public class TestBBoxStrategy extends RandomSpatialOpStrategyTestCase {
     setupGeo();
     testOperation(
         ctx.makeRectangle(-180, -150, -10, 10),
-        SpatialOperation.Contains,
+        SpatialPredicate.Contains,
         ctx.makeRectangle(180, 180, -10, 10), true);
   }
 
@@ -166,7 +167,7 @@ public class TestBBoxStrategy extends RandomSpatialOpStrategyTestCase {
     setupGeo();
     testOperation(
         ctx.makeRectangle(-180, 180, -10, 10),
-        SpatialOperation.Contains,
+        SpatialPredicate.Contains,
         ctx.makeRectangle(170, -170, -10, 10), true);
   }
 
@@ -175,14 +176,14 @@ public class TestBBoxStrategy extends RandomSpatialOpStrategyTestCase {
   public void testAlongDatelineOppositeSign() throws IOException {
     // Due to Spatial4j bug #85, we can't simply do:
     //    testOperation(indexedShape,
-    //        SpatialOperation.IsWithin,
+    //        SpatialPredicate.IsWithin,
     //        queryShape, true);
 
     //both on dateline but expressed using opposite signs
     setupGeo();
     final Rectangle indexedShape = ctx.makeRectangle(180, 180, -10, 10);
     final Rectangle queryShape = ctx.makeRectangle(-180, -180, -20, 20);
-    final SpatialOperation operation = SpatialOperation.IsWithin;
+    final SpatialPredicate operation = SpatialPredicate.IsWithin;
     final boolean match = true;//yes it is within
 
     //the rest is super.testOperation without leading assert:

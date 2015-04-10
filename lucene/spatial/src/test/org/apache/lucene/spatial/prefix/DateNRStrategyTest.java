@@ -21,10 +21,11 @@ import java.io.IOException;
 import java.util.Calendar;
 
 import com.carrotsearch.randomizedtesting.annotations.Repeat;
+import com.spatial4j.core.SpatialPredicate;
 import com.spatial4j.core.shape.Shape;
+
 import org.apache.lucene.spatial.prefix.tree.DateRangePrefixTree;
 import org.apache.lucene.spatial.prefix.tree.NumberRangePrefixTree.UnitNRShape;
-import org.apache.lucene.spatial.query.SpatialOperation;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -63,19 +64,19 @@ public class DateNRStrategyTest extends RandomSpatialOpStrategyTestCase {
   @Test
   @Repeat(iterations = ITERATIONS)
   public void testIntersects() throws IOException {
-    testOperationRandomShapes(SpatialOperation.Intersects);
+    testOperationRandomShapes(SpatialPredicate.Intersects);
   }
 
   @Test
   @Repeat(iterations = ITERATIONS)
   public void testWithin() throws IOException {
-    testOperationRandomShapes(SpatialOperation.IsWithin);
+    testOperationRandomShapes(SpatialPredicate.IsWithin);
   }
 
   @Test
   @Repeat(iterations = ITERATIONS)
   public void testContains() throws IOException {
-    testOperationRandomShapes(SpatialOperation.Contains);
+    testOperationRandomShapes(SpatialPredicate.Contains);
   }
 
   @Test
@@ -83,7 +84,7 @@ public class DateNRStrategyTest extends RandomSpatialOpStrategyTestCase {
     final Calendar cal = tree.newCal();
     testOperation(
         tree.toShape(cal),
-        SpatialOperation.IsWithin,
+        SpatialPredicate.IsWithin,
         tree.toShape(cal), true);//is within itself
   }
 
@@ -91,7 +92,7 @@ public class DateNRStrategyTest extends RandomSpatialOpStrategyTestCase {
   public void testWorld() throws IOException {
     testOperation(
         tree.toShape(tree.newCal()),//world matches everything
-        SpatialOperation.Contains,
+        SpatialPredicate.Contains,
         tree.toShape(randomCalendar()), true);
   }
 
@@ -100,7 +101,7 @@ public class DateNRStrategyTest extends RandomSpatialOpStrategyTestCase {
     //bug due to fast path initIter() optimization
     testOperation(
         tree.parseShape("[2014-03-27T23 TO 2014-04-01T01]"),
-        SpatialOperation.Intersects,
+        SpatialPredicate.Intersects,
         tree.parseShape("[2014-04 TO 2014-04-01T02]"), true);
   }
 

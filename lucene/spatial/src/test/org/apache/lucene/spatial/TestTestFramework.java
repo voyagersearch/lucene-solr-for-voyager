@@ -17,10 +17,11 @@ package org.apache.lucene.spatial;
  * limitations under the License.
  */
 
+import com.spatial4j.core.SpatialPredicate;
 import com.spatial4j.core.context.SpatialContext;
 import com.spatial4j.core.shape.Rectangle;
+
 import org.apache.lucene.spatial.query.SpatialArgsParser;
-import org.apache.lucene.spatial.query.SpatialOperation;
 import org.apache.lucene.util.LuceneTestCase;
 import org.junit.Assert;
 import org.junit.Test;
@@ -56,7 +57,7 @@ public class TestTestFramework extends LuceneTestCase {
     Assert.assertEquals( 1, sf.ids.size() );
     Assert.assertTrue( sf.ids.get(0).equals( "G5391959" ) );
     Assert.assertTrue( sf.args.getShape() instanceof Rectangle);
-    Assert.assertEquals(SpatialOperation.Intersects, sf.args.getOperation());
+    Assert.assertEquals(SpatialPredicate.Intersects, sf.args.getOperation());
   }
 
   @Test

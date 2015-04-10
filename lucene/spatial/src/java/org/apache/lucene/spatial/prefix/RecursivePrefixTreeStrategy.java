@@ -21,16 +21,17 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
+import com.spatial4j.core.SpatialPredicate;
+import com.spatial4j.core.exception.UnsupportedSpatialPredicate;
 import com.spatial4j.core.shape.Point;
 import com.spatial4j.core.shape.Shape;
+
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.spatial.prefix.tree.Cell;
 import org.apache.lucene.spatial.prefix.tree.CellIterator;
 import org.apache.lucene.spatial.prefix.tree.LegacyCell;
 import org.apache.lucene.spatial.prefix.tree.SpatialPrefixTree;
 import org.apache.lucene.spatial.query.SpatialArgs;
-import org.apache.lucene.spatial.query.SpatialOperation;
-import org.apache.lucene.spatial.query.UnsupportedSpatialOperation;
 
 /**
  * A {@link PrefixTreeStrategy} which uses {@link AbstractVisitingPrefixTreeFilter}.
@@ -167,23 +168,23 @@ public class RecursivePrefixTreeStrategy extends PrefixTreeStrategy {
 
   @Override
   public Filter makeFilter(SpatialArgs args) {
-    final SpatialOperation op = args.getOperation();
+    final SpatialPredicate op = args.getOperation();
 
     Shape shape = args.getShape();
     int detailLevel = grid.getLevelForDistance(args.resolveDistErr(ctx, distErrPct));
 
-    if (op == SpatialOperation.Intersects) {
+    if (op == SpatialPredicate.Intersects) {
       return new IntersectsPrefixTreeFilter(
           shape, getFieldName(), grid, detailLevel, prefixGridScanLevel);
-    } else if (op == SpatialOperation.IsWithin) {
+    } else if (op == SpatialPredicate.IsWithin) {
       return new WithinPrefixTreeFilter(
           shape, getFieldName(), grid, detailLevel, prefixGridScanLevel,
           -1);//-1 flag is slower but ensures correct results
-    } else if (op == SpatialOperation.Contains) {
+    } else if (op == SpatialPredicate.Contains) {
       return new ContainsPrefixTreeFilter(shape, getFieldName(), grid, detailLevel,
           multiOverlappingIndexedShapes);
     }
-    throw new UnsupportedSpatialOperation(op);
+    throw new UnsupportedSpatialPredicate(op);
   }
 }
 

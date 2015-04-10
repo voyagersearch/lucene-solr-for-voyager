@@ -17,15 +17,16 @@ package org.apache.lucene.spatial.prefix;
  * limitations under the License.
  */
 
+import com.spatial4j.core.SpatialPredicate;
 import com.spatial4j.core.context.SpatialContext;
 import com.spatial4j.core.distance.DistanceUtils;
 import com.spatial4j.core.shape.Point;
 import com.spatial4j.core.shape.Shape;
+
 import org.apache.lucene.spatial.SpatialMatchConcern;
 import org.apache.lucene.spatial.StrategyTestCase;
 import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
 import org.apache.lucene.spatial.query.SpatialArgs;
-import org.apache.lucene.spatial.query.SpatialOperation;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -101,7 +102,7 @@ public class TestRecursivePrefixTreeStrategy extends StrategyTestCase {
 
   private SpatialArgs q(Point pt, double distDEG, double distErrPct) {
     Shape shape = ctx.makeCircle(pt, distDEG);
-    SpatialArgs args = new SpatialArgs(SpatialOperation.Intersects,shape);
+    SpatialArgs args = new SpatialArgs(SpatialPredicate.Intersects,shape);
     args.setDistErrPct(distErrPct);
     return args;
   }

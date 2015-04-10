@@ -17,6 +17,7 @@ package org.apache.lucene.spatial;
  * limitations under the License.
  */
 
+import com.spatial4j.core.SpatialPredicate;
 import com.spatial4j.core.context.SpatialContext;
 import com.spatial4j.core.distance.DistanceUtils;
 import com.spatial4j.core.shape.Point;
@@ -44,7 +45,6 @@ import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.SpatialPrefixTree;
 import org.apache.lucene.spatial.query.SpatialArgs;
 import org.apache.lucene.spatial.query.SpatialArgsParser;
-import org.apache.lucene.spatial.query.SpatialOperation;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.util.LuceneTestCase;
@@ -150,7 +150,7 @@ public class SpatialExample extends LuceneTestCase {
     {
       //Search with circle
       //note: SpatialArgs can be parsed from a string
-      SpatialArgs args = new SpatialArgs(SpatialOperation.Intersects,
+      SpatialArgs args = new SpatialArgs(SpatialPredicate.Intersects,
           ctx.makeCircle(-80.0, 33.0, DistanceUtils.dist2Degrees(200, DistanceUtils.EARTH_MEAN_RADIUS_KM)));
       Filter filter = strategy.makeFilter(args);
       TopDocs docs = indexSearcher.search(new FilteredQuery(new MatchAllDocsQuery(), filter), 10, idSort);
@@ -184,7 +184,7 @@ public class SpatialExample extends LuceneTestCase {
     }
     //demo arg parsing
     {
-      SpatialArgs args = new SpatialArgs(SpatialOperation.Intersects,
+      SpatialArgs args = new SpatialArgs(SpatialPredicate.Intersects,
           ctx.makeCircle(-80.0, 33.0, 1));
       SpatialArgs args2 = new SpatialArgsParser().parse("Intersects(BUFFER(POINT(-80 33),1))", ctx);
       assertEquals(args.toString(),args2.toString());

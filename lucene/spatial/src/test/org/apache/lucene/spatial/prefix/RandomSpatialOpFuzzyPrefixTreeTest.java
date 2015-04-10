@@ -30,6 +30,7 @@ import java.util.Map;
 import java.util.Set;
 
 import com.carrotsearch.randomizedtesting.annotations.Repeat;
+import com.spatial4j.core.SpatialPredicate;
 import com.spatial4j.core.context.SpatialContext;
 import com.spatial4j.core.context.SpatialContextFactory;
 import com.spatial4j.core.shape.Point;
@@ -38,6 +39,7 @@ import com.spatial4j.core.shape.Shape;
 import com.spatial4j.core.shape.ShapeCollection;
 import com.spatial4j.core.shape.SpatialRelation;
 import com.spatial4j.core.shape.impl.RectangleImpl;
+
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StoredField;
@@ -50,7 +52,6 @@ import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.QuadPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.SpatialPrefixTree;
 import org.apache.lucene.spatial.query.SpatialArgs;
-import org.apache.lucene.spatial.query.SpatialOperation;
 import org.junit.Test;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomBoolean;
@@ -128,21 +129,21 @@ public class RandomSpatialOpFuzzyPrefixTreeTest extends StrategyTestCase {
   @Repeat(iterations = ITERATIONS)
   public void testIntersects() throws IOException {
     setupGrid(-1);
-    doTest(SpatialOperation.Intersects);
+    doTest(SpatialPredicate.Intersects);
   }
 
   @Test
   @Repeat(iterations = ITERATIONS)
   public void testWithin() throws IOException {
     setupGrid(-1);
-    doTest(SpatialOperation.IsWithin);
+    doTest(SpatialPredicate.IsWithin);
   }
 
   @Test
   @Repeat(iterations = ITERATIONS)
   public void testContains() throws IOException {
     setupGrid(-1);
-    doTest(SpatialOperation.Contains);
+    doTest(SpatialPredicate.Contains);
   }
 
   /** See LUCENE-5062, {@link ContainsPrefixTreeFilter#multiOverlappingIndexedShapes}. */
@@ -151,7 +152,7 @@ public class RandomSpatialOpFuzzyPrefixTreeTest extends StrategyTestCase {
     setupQuadGrid(3);
     adoc("0", new ShapePair(ctx.makeRectangle(0, 33, -128, 128), ctx.makeRectangle(33, 128, -128, 128), true));
     commit();
-    Query query = strategy.makeQuery(new SpatialArgs(SpatialOperation.Contains,
+    Query query = strategy.makeQuery(new SpatialArgs(SpatialPredicate.Contains,
         ctx.makeRectangle(0, 128, -16, 128)));
     SearchResults searchResults = executeQuery(query, 1);
     assertEquals(1, searchResults.numFound);
@@ -164,7 +165,7 @@ public class RandomSpatialOpFuzzyPrefixTreeTest extends StrategyTestCase {
     adoc("0", new ShapePair(ctx.makeRectangle(0, 10, -120, -100), ctx.makeRectangle(220, 240, 110, 125), false));
     commit();
     //query surrounds only the second part of the indexed shape
-    Query query = strategy.makeQuery(new SpatialArgs(SpatialOperation.IsWithin,
+    Query query = strategy.makeQuery(new SpatialArgs(SpatialPredicate.IsWithin,
         ctx.makeRectangle(210, 245, 105, 128)));
     SearchResults searchResults = executeQuery(query, 1);
     //we shouldn't find it because it's not completely within
@@ -184,13 +185,13 @@ public class RandomSpatialOpFuzzyPrefixTreeTest extends StrategyTestCase {
     // when expanded to the full grid cells, the top one's top row is disjoint
     // from the query and thus not a match.
     assertTrue(executeQuery(strategy.makeQuery(
-        new SpatialArgs(SpatialOperation.IsWithin, ctx.makeRectangle(38, 192, -72, 56))
+        new SpatialArgs(SpatialPredicate.IsWithin, ctx.makeRectangle(38, 192, -72, 56))
     ), 1).numFound==0);//no-match
 
     //this time the rect is a little bigger and is considered a match. It's
     // an acceptable false-positive because of the grid approximation.
     assertTrue(executeQuery(strategy.makeQuery(
-        new SpatialArgs(SpatialOperation.IsWithin, ctx.makeRectangle(38, 192, -72, 80))
+        new SpatialArgs(SpatialPredicate.IsWithin, ctx.makeRectangle(38, 192, -72, 80))
     ), 1).numFound==1);//match
   }
 
@@ -231,7 +232,7 @@ public class RandomSpatialOpFuzzyPrefixTreeTest extends StrategyTestCase {
   }
 
   @SuppressWarnings("fallthrough")
-  private void doTest(final SpatialOperation operation) throws IOException {
+  private void doTest(final SpatialPredicate operation) throws IOException {
     //first show that when there's no data, a query will result in no results
     {
       Query query = strategy.makeQuery(new SpatialArgs(operation, randomRectangle()));
@@ -239,7 +240,7 @@ public class RandomSpatialOpFuzzyPrefixTreeTest extends StrategyTestCase {
       assertEquals(0, searchResults.numFound);
     }
 
-    final boolean biasContains = (operation == SpatialOperation.Contains);
+    final boolean biasContains = (operation == SpatialPredicate.Contains);
 
     //Main index loop:
     Map<String, Shape> indexedShapes = new LinkedHashMap<>();
@@ -316,7 +317,7 @@ public class RandomSpatialOpFuzzyPrefixTreeTest extends StrategyTestCase {
       }
       final Shape queryShapeGS = gridSnap(queryShape);
 
-      final boolean opIsDisjoint = operation == SpatialOperation.IsDisjointTo;
+      final boolean opIsDisjoint = operation == SpatialPredicate.IsDisjointTo;
 
       //Generate truth via brute force:
       // We ensure true-positive matches (if the predicate on the raw shapes match
@@ -342,15 +343,15 @@ public class RandomSpatialOpFuzzyPrefixTreeTest extends StrategyTestCase {
           }
         } else if (!opIsDisjoint) {
           //buffer either the indexed or query shape (via gridSnap) and try again
-          if (operation == SpatialOperation.Intersects) {
+          if (operation == SpatialPredicate.Intersects) {
             indexedShapeCompare = indexedShapesGS.get(id);
             queryShapeCompare = queryShapeGS;
             //TODO Unfortunately, grid-snapping both can result in intersections that otherwise
             // wouldn't happen when the grids are adjacent. Not a big deal but our test is just a
             // bit more lenient.
-          } else if (operation == SpatialOperation.Contains) {
+          } else if (operation == SpatialPredicate.Contains) {
             indexedShapeCompare = indexedShapesGS.get(id);
-          } else if (operation == SpatialOperation.IsWithin) {
+          } else if (operation == SpatialPredicate.IsWithin) {
             queryShapeCompare = queryShapeGS;
           }
           if (operation.evaluate(indexedShapeCompare, queryShapeCompare))

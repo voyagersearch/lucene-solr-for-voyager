@@ -17,8 +17,10 @@ package org.apache.lucene.spatial;
  * limitations under the License.
  */
 
+import com.spatial4j.core.SpatialPredicate;
 import com.spatial4j.core.context.SpatialContext;
 import com.spatial4j.core.shape.Shape;
+
 import org.apache.lucene.spatial.bbox.BBoxStrategy;
 import org.apache.lucene.spatial.prefix.RecursivePrefixTreeStrategy;
 import org.apache.lucene.spatial.prefix.TermQueryPrefixTreeStrategy;
@@ -26,7 +28,6 @@ import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.QuadPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.SpatialPrefixTree;
 import org.apache.lucene.spatial.query.SpatialArgs;
-import org.apache.lucene.spatial.query.SpatialOperation;
 import org.apache.lucene.spatial.serialized.SerializedDVStrategy;
 import org.apache.lucene.spatial.vector.PointVectorStrategy;
 import org.apache.lucene.util.LuceneTestCase;
@@ -99,12 +100,12 @@ public class QueryEqualsHashCodeTest extends LuceneTestCase {
 
   private SpatialArgs makeArgs1() {
     final Shape shape1 = ctx.makeRectangle(0, 0, 10, 10);
-    return new SpatialArgs(SpatialOperation.Intersects, shape1);
+    return new SpatialArgs(SpatialPredicate.Intersects, shape1);
   }
 
   private SpatialArgs makeArgs2() {
     final Shape shape2 = ctx.makeRectangle(0, 0, 20, 20);
-    return new SpatialArgs(SpatialOperation.Intersects, shape2);
+    return new SpatialArgs(SpatialPredicate.Intersects, shape2);
   }
 
   interface ObjGenerator {

@@ -17,10 +17,13 @@ package org.apache.lucene.spatial;
  * limitations under the License.
  */
 
+import com.spatial4j.core.SpatialPredicate;
 import com.spatial4j.core.context.SpatialContext;
+import com.spatial4j.core.exception.UnsupportedSpatialPredicate;
 import com.spatial4j.core.shape.Point;
 import com.spatial4j.core.shape.Rectangle;
 import com.spatial4j.core.shape.Shape;
+
 import org.apache.lucene.document.Field;
 import org.apache.lucene.queries.function.ValueSource;
 import org.apache.lucene.queries.function.valuesource.ReciprocalFloatFunction;
@@ -28,6 +31,7 @@ import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.spatial.query.SpatialArgs;
+import org.apache.solr.search.SpatialOptions;
 
 /**
  * The SpatialStrategy encapsulates an approach to indexing and searching based
@@ -117,21 +121,21 @@ public abstract class SpatialStrategy {
   public abstract ValueSource makeDistanceValueSource(Point queryPoint, double multiplier);
 
   /**
-   * Make a Query based principally on {@link org.apache.lucene.spatial.query.SpatialOperation}
+   * Make a Query based principally on {@link SpatialPredicate}
    * and {@link Shape} from the supplied {@code args}.
    * The default implementation is
    * <pre>return new ConstantScoreQuery(makeFilter(args));</pre>
    *
    * @throws UnsupportedOperationException If the strategy does not support the shape in {@code args}
-   * @throws org.apache.lucene.spatial.query.UnsupportedSpatialOperation If the strategy does not support the {@link
-   * org.apache.lucene.spatial.query.SpatialOperation} in {@code args}.
+   * @throws UnsupportedSpatialPredicate If the strategy does not support the {@link
+   * SpatialPredicate} in {@code args}.
    */
   public Query makeQuery(SpatialArgs args) {
     return new ConstantScoreQuery(makeFilter(args));
   }
 
   /**
-   * Make a Filter based principally on {@link org.apache.lucene.spatial.query.SpatialOperation}
+   * Make a Filter based principally on {@link SpatialPredicate}
    * and {@link Shape} from the supplied {@code args}.
    * <p>
    * If a subclasses implements
@@ -140,8 +144,8 @@ public abstract class SpatialStrategy {
    * <pre>return new QueryWrapperFilter(makeQuery(args).getQuery());</pre>
    *
    * @throws UnsupportedOperationException If the strategy does not support the shape in {@code args}
-   * @throws org.apache.lucene.spatial.query.UnsupportedSpatialOperation If the strategy does not support the {@link
-   * org.apache.lucene.spatial.query.SpatialOperation} in {@code args}.
+   * @throws UnsupportedSpatialPredicate If the strategy does not support the {@link
+   * SpatialPredicate} in {@code args}.
    */
   public abstract Filter makeFilter(SpatialArgs args);
 

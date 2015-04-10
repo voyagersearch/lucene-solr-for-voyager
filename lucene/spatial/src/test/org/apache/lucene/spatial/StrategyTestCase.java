@@ -30,8 +30,10 @@ import java.util.List;
 import java.util.Set;
 import java.util.logging.Logger;
 
+import com.spatial4j.core.SpatialPredicate;
 import com.spatial4j.core.context.SpatialContext;
 import com.spatial4j.core.shape.Shape;
+
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StoredField;
@@ -46,7 +48,6 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.spatial.query.SpatialArgs;
 import org.apache.lucene.spatial.query.SpatialArgsParser;
-import org.apache.lucene.spatial.query.SpatialOperation;
 
 public abstract class StrategyTestCase extends SpatialTestCase {
 
@@ -234,12 +235,12 @@ public abstract class StrategyTestCase extends SpatialTestCase {
     CheckHits.checkExplanations(q, "", indexSearcher);
   }
 
-  protected void testOperation(Shape indexedShape, SpatialOperation operation,
+  protected void testOperation(Shape indexedShape, SpatialPredicate operation,
                                Shape queryShape, boolean match) throws IOException {
     assertTrue("Faulty test",
         operation.evaluate(indexedShape, queryShape) == match ||
             indexedShape.equals(queryShape) &&
-              (operation == SpatialOperation.Contains || operation == SpatialOperation.IsWithin));
+              (operation == SpatialPredicate.Contains || operation == SpatialPredicate.IsWithin));
     adoc("0", indexedShape);
     commit();
     Query query = strategy.makeQuery(new SpatialArgs(operation, queryShape));

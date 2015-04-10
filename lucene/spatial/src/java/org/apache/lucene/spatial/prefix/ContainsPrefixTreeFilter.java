@@ -20,8 +20,10 @@ package org.apache.lucene.spatial.prefix;
 import java.io.IOException;
 import java.util.Arrays;
 
+import com.spatial4j.core.SpatialPredicate;
 import com.spatial4j.core.shape.Shape;
 import com.spatial4j.core.shape.SpatialRelation;
+
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.TermsEnum;
@@ -36,7 +38,7 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.SentinelIntSet;
 
 /**
- * Finds docs where its indexed shape {@link org.apache.lucene.spatial.query.SpatialOperation#Contains
+ * Finds docs where its indexed shape {@link SpatialPredicate#Contains
  * CONTAINS} the query shape. For use on {@link RecursivePrefixTreeStrategy}.
  *
  * @lucene.experimental

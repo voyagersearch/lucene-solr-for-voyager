@@ -35,12 +35,13 @@ import org.apache.lucene.search.QueryWrapperFilter;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.spatial.SpatialStrategy;
 import org.apache.lucene.spatial.query.SpatialArgs;
-import org.apache.lucene.spatial.query.SpatialOperation;
-import org.apache.lucene.spatial.query.UnsupportedSpatialOperation;
 import org.apache.lucene.spatial.util.DistanceToShapeValueSource;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.NumericUtils;
+
+import com.spatial4j.core.SpatialPredicate;
 import com.spatial4j.core.context.SpatialContext;
+import com.spatial4j.core.exception.UnsupportedSpatialPredicate;
 import com.spatial4j.core.shape.Point;
 import com.spatial4j.core.shape.Rectangle;
 import com.spatial4j.core.shape.Shape;
@@ -48,7 +49,7 @@ import com.spatial4j.core.shape.Shape;
 
 /**
  * A SpatialStrategy for indexing and searching Rectangles by storing its
- * coordinates in numeric fields. It supports all {@link SpatialOperation}s and
+ * coordinates in numeric fields. It supports all {@link SpatialPredicate}s and
  * has a custom overlap relevancy. It is based on GeoPortal's <a
  * href="http://geoportal.svn.sourceforge.net/svnroot/geoportal/Geoportal/trunk/src/com/esri/gpt/catalog/lucene/SpatialClauseAdapter.java">SpatialClauseAdapter</a>.
  * <p>
@@ -58,7 +59,7 @@ import com.spatial4j.core.shape.Shape;
  * <li>Only indexes Rectangles; just one per field value. Other shapes can be provided
  * and the bounding box will be used.</li>
  * <li>Can query only by a Rectangle. Providing other shapes is an error.</li>
- * <li>Supports most {@link SpatialOperation}s but not Overlaps.</li>
+ * <li>Supports most {@link SpatialPredicate}s but not Overlaps.</li>
  * <li>Uses the DocValues API for any sorting / relevancy.</li>
  * </ul>
  * <p>
@@ -66,7 +67,7 @@ import com.spatial4j.core.shape.Shape;
  * <p>
  * This uses 4 double fields for minX, maxX, minY, maxY
  * and a boolean to mark a dateline cross. Depending on the particular {@link
- * SpatialOperation}s, there are a variety of {@link NumericRangeQuery}s to be
+ * SpatialPredicate}s, there are a variety of {@link NumericRangeQuery}s to be
  * done.
  * The {@link #makeOverlapRatioValueSource(com.spatial4j.core.shape.Rectangle, double)}
  * works by calculating the query bbox overlap percentage against the indexed
@@ -234,16 +235,16 @@ public class BBoxStrategy extends SpatialStrategy {
 
     // Useful for understanding Relations:
     // http://edndoc.esri.com/arcsde/9.1/general_topics/understand_spatial_relations.htm
-    SpatialOperation op = args.getOperation();
-         if( op == SpatialOperation.BBoxIntersects ) spatial = makeIntersects(bbox);
-    else if( op == SpatialOperation.BBoxWithin     ) spatial = makeWithin(bbox);
-    else if( op == SpatialOperation.Contains       ) spatial = makeContains(bbox);
-    else if( op == SpatialOperation.Intersects     ) spatial = makeIntersects(bbox);
-    else if( op == SpatialOperation.IsEqualTo      ) spatial = makeEquals(bbox);
-    else if( op == SpatialOperation.IsDisjointTo   ) spatial = makeDisjoint(bbox);
-    else if( op == SpatialOperation.IsWithin       ) spatial = makeWithin(bbox);
+    SpatialPredicate op = args.getOperation();
+         if( op == SpatialPredicate.BBoxIntersects ) spatial = makeIntersects(bbox);
+    else if( op == SpatialPredicate.BBoxWithin     ) spatial = makeWithin(bbox);
+    else if( op == SpatialPredicate.Contains       ) spatial = makeContains(bbox);
+    else if( op == SpatialPredicate.Intersects     ) spatial = makeIntersects(bbox);
+    else if( op == SpatialPredicate.IsEqualTo      ) spatial = makeEquals(bbox);
+    else if( op == SpatialPredicate.IsDisjointTo   ) spatial = makeDisjoint(bbox);
+    else if( op == SpatialPredicate.IsWithin       ) spatial = makeWithin(bbox);
     else { //no Overlaps support yet
-        throw new UnsupportedSpatialOperation(op);
+        throw new UnsupportedSpatialPredicate(op);
     }
     return spatial;
   }

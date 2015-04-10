@@ -23,7 +23,9 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
+import com.spatial4j.core.SpatialPredicate;
 import com.spatial4j.core.shape.Shape;
+
 import org.apache.lucene.search.Query;
 import org.apache.lucene.spatial.StrategyTestCase;
 import org.apache.lucene.spatial.query.SpatialArgs;
@@ -39,7 +41,7 @@ public abstract class RandomSpatialOpStrategyTestCase extends StrategyTestCase {
 
   //Note: this is partially redundant with StrategyTestCase.runTestQuery & testOperation
 
-  protected void testOperationRandomShapes(final SpatialOperation operation) throws IOException {
+  protected void testOperationRandomShapes(final SpatialPredicate operation) throws IOException {
 
     final int numIndexedShapes = randomIntBetween(1, 6);
     List<Shape> indexedShapes = new ArrayList<>(numIndexedShapes);
@@ -56,7 +58,7 @@ public abstract class RandomSpatialOpStrategyTestCase extends StrategyTestCase {
     testOperation(operation, indexedShapes, queryShapes, true/*havoc*/);
   }
 
-  protected void testOperation(final SpatialOperation operation,
+  protected void testOperation(final SpatialPredicate operation,
                                List<Shape> indexedShapes, List<Shape> queryShapes, boolean havoc) throws IOException {
     //first show that when there's no data, a query will result in no results
     {
@@ -123,7 +125,7 @@ public abstract class RandomSpatialOpStrategyTestCase extends StrategyTestCase {
     }
   }
 
-  private void fail(String label, String id, List<Shape> indexedShapes, Shape queryShape, SpatialOperation operation) {
+  private void fail(String label, String id, List<Shape> indexedShapes, Shape queryShape, SpatialPredicate operation) {
     fail("[" + operation + "] " + label
         + " I#" + id + ":" + indexedShapes.get(Integer.parseInt(id)) + " Q:" + queryShape);
   }

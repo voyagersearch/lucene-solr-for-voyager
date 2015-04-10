@@ -20,12 +20,14 @@ package org.apache.lucene.spatial.composite;
 import java.io.IOException;
 
 import com.carrotsearch.randomizedtesting.annotations.Repeat;
+import com.spatial4j.core.SpatialPredicate;
 import com.spatial4j.core.context.SpatialContext;
 import com.spatial4j.core.context.SpatialContextFactory;
 import com.spatial4j.core.shape.Point;
 import com.spatial4j.core.shape.Rectangle;
 import com.spatial4j.core.shape.Shape;
 import com.spatial4j.core.shape.impl.RectangleImpl;
+
 import org.apache.lucene.spatial.prefix.RandomSpatialOpStrategyTestCase;
 import org.apache.lucene.spatial.prefix.RecursivePrefixTreeStrategy;
 import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
@@ -89,8 +91,8 @@ public class CompositeStrategyTest extends RandomSpatialOpStrategyTestCase {
 
     //Do it!
 
-    for (SpatialOperation pred : SpatialOperation.values()) {
-      if (pred == SpatialOperation.BBoxIntersects || pred == SpatialOperation.BBoxWithin) {
+    for (SpatialPredicate pred : SpatialPredicate.values()) {
+      if (pred == SpatialPredicate.BBoxIntersects || pred == SpatialPredicate.BBoxWithin) {
         continue;
       }
       if (pred == SpatialOperation.IsDisjointTo) {//TODO

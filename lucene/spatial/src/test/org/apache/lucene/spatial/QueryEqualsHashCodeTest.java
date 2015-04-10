@@ -20,8 +20,10 @@ package org.apache.lucene.spatial;
 import java.util.ArrayList;
 import java.util.Collection;
 
+import com.spatial4j.core.SpatialPredicate;
 import com.spatial4j.core.context.SpatialContext;
 import com.spatial4j.core.shape.Shape;
+
 import org.apache.lucene.spatial.bbox.BBoxStrategy;
 import org.apache.lucene.spatial.composite.CompositeSpatialStrategy;
 import org.apache.lucene.spatial.prefix.RecursivePrefixTreeStrategy;
@@ -30,7 +32,6 @@ import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.QuadPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.SpatialPrefixTree;
 import org.apache.lucene.spatial.query.SpatialArgs;
-import org.apache.lucene.spatial.query.SpatialOperation;
 import org.apache.lucene.spatial.serialized.SerializedDVStrategy;
 import org.apache.lucene.spatial.vector.PointVectorStrategy;
 import org.apache.lucene.util.LuceneTestCase;
@@ -40,16 +41,16 @@ public class QueryEqualsHashCodeTest extends LuceneTestCase {
 
   private final SpatialContext ctx = SpatialContext.GEO;
 
-  private SpatialOperation predicate;
+  private SpatialPredicate predicate;
 
   @Test
   public void testEqualsHashCode() {
 
     switch (random().nextInt(4)) {//0-3
-      case 0: predicate = SpatialOperation.Contains; break;
-      case 1: predicate = SpatialOperation.IsWithin; break;
+      case 0: predicate = SpatialPredicate.Contains; break;
+      case 1: predicate = SpatialPredicate.IsWithin; break;
 
-      default: predicate = SpatialOperation.Intersects; break;
+      default: predicate = SpatialPredicate.Intersects; break;
     }
     final SpatialPrefixTree gridQuad = new QuadPrefixTree(ctx,10);
     final SpatialPrefixTree gridGeohash = new GeohashPrefixTree(ctx,10);

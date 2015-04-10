@@ -19,13 +19,16 @@ package org.apache.solr.client.solrj;
 
 
 import com.google.common.collect.Maps;
+
 import junit.framework.Assert;
+
 import org.apache.lucene.util.TestUtil;
 import org.apache.solr.SolrTestCaseJ4.SuppressSSL;
 import org.apache.solr.client.solrj.embedded.EmbeddedSolrServer;
 import org.apache.solr.client.solrj.impl.BinaryResponseParser;
 import org.apache.solr.client.solrj.impl.ConcurrentUpdateSolrClient;
 import org.apache.solr.client.solrj.impl.HttpSolrClient;
+import org.apache.solr.client.solrj.impl.NoOpResponseParser;
 import org.apache.solr.client.solrj.impl.XMLResponseParser;
 import org.apache.solr.client.solrj.request.AbstractUpdateRequest;
 import org.apache.solr.client.solrj.request.AbstractUpdateRequest.ACTION;
@@ -483,6 +486,7 @@ abstract public class SolrExampleTests extends SolrExampleTestsBase
     doc.addField( "id", "111", 1.0f );
     doc.addField( "name", "doc1", 1.0f );
     doc.addField( "price", 11 );
+    doc.addField( "json_s", "{ \"raw\": 1.234, \"id\":\"111\" }" );
     client.add(doc);
     client.commit(); // make sure this gets in first
     
@@ -490,12 +494,13 @@ abstract public class SolrExampleTests extends SolrExampleTestsBase
     doc.addField( "id", "222", 1.0f );
     doc.addField( "name", "doc2", 1.0f );
     doc.addField( "price", 22 );
+    doc.addField( "json_s", "{ \"raw\": 3.45, \"id\":\"222\" }" );
     client.add(doc);
     client.commit();
     
     SolrQuery query = new SolrQuery();
     query.setQuery( "*:*" );
-    query.set( CommonParams.FL, "id,price,[docid],[explain style=nl],score,aaa:[value v=aaa],ten:[value v=10 t=int]" );
+    query.set( CommonParams.FL, "id,price,[docid],[explain style=nl],score,aaa:[value v=aaa],ten:[value v=10 t=int],json_s:[raw]" );
     query.addSort(new SolrQuery.SortClause("price", SolrQuery.ORDER.asc));
     QueryResponse rsp = client.query( query );
     
@@ -520,6 +525,25 @@ abstract public class SolrExampleTests extends SolrExampleTestsBase
     // Augmented _value_ with alias
     assertEquals( "aaa", out1.get( "aaa" ) );
     assertEquals( 10, ((Integer)out1.get( "ten" )).intValue() );
+    
+    // Check that the 'raw' fields are unchanged using the standard encoding
+    Object json = out1.get("json_s");
+    System.out.println( json + " :: " + json.getClass() );
+    
+    
+    if(client instanceof HttpSolrClient) {
+      // Now with json
+      query.set(CommonParams.WT, "json");
+      rsp = client.query( query );
+      out1 = rsp.getResults().get( 0 ); 
+      
+      QueryRequest req = new QueryRequest( query );
+      req.setResponseParser(new NoOpResponseParser("json"));
+      NamedList<Object> resp = client.request(req);
+      String raw = (String)resp.get("response");
+
+      System.out.println( "RESPONSE: "+raw);
+    }
   }
 
   @Test

@@ -261,7 +261,10 @@ public class SolrReturnFields extends ReturnFields {
           TransformerFactory factory = req.getCore().getTransformerFactory( augmenterName );
           if( factory != null ) {
             MapSolrParams augmenterParams = new MapSolrParams( augmenterArgs );
-            augmenters.addTransformer( factory.create(disp, augmenterParams, req) );
+            DocTransformer xform = factory.create(disp, augmenterParams, req);
+            if(xform!=null) {
+              augmenters.addTransformer(xform);
+            }
           }
           else {
             // unknown transformer?

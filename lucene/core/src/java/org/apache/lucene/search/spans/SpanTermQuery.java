@@ -94,7 +94,11 @@ public class SpanTermQuery extends SpanQuery {
       // so we seek to the term now in this segment..., this sucks because it's ugly mostly!
       final Terms terms = context.reader().terms(term.field());
       if (terms != null) {
-        final TermsEnum termsEnum = terms.iterator(null);
+        if (terms.hasPositions() == false) {
+          throw new IllegalStateException("field \"" + term.field() + "\" was indexed without position data; cannot run SpanTermQuery (term=" + term.text() + ")");
+        }
+
+        final TermsEnum termsEnum = terms.iterator();
         if (termsEnum.seekExact(term.bytes())) {
           state = termsEnum.termState();
         } else {
@@ -111,16 +115,10 @@ public class SpanTermQuery extends SpanQuery {
       return null;
     }
 
-    final TermsEnum termsEnum = context.reader().terms(term.field()).iterator(null);
+    final TermsEnum termsEnum = context.reader().terms(term.field()).iterator();
     termsEnum.seekExact(term.bytes(), state);
 
     final PostingsEnum postings = termsEnum.postings(acceptDocs, null, PostingsEnum.PAYLOADS);
-
-    if (postings != null) {
-      return new TermSpans(postings, term);
-    } else {
-      // term does exist, but has no positions
-      throw new IllegalStateException("field \"" + term.field() + "\" was indexed without position data; cannot run SpanTermQuery (term=" + term.text() + ")");
-    }
+    return new TermSpans(postings, term);
   }
 }

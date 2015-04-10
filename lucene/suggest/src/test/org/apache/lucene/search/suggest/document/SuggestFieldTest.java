@@ -27,6 +27,7 @@ import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CyclicBarrier;
 
+import com.carrotsearch.randomizedtesting.annotations.Seed;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.MockAnalyzer;
 import org.apache.lucene.analysis.MockTokenFilter;
@@ -41,7 +42,6 @@ import org.apache.lucene.document.IntField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
@@ -56,11 +56,9 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.LineFileDocs;
 import org.apache.lucene.util.LuceneTestCase;
-import org.apache.lucene.util.NumericUtils;
 import org.apache.lucene.util.TestUtil;
 import org.junit.After;
 import org.junit.Before;
@@ -150,16 +148,16 @@ public class SuggestFieldTest extends LuceneTestCase {
   public void testDupSuggestFieldValues() throws Exception {
     Analyzer analyzer = new MockAnalyzer(random());
     RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwcWithSuggestField(analyzer, "suggest_field"));
-    int num = atLeast(300);
+    int num = Math.min(1000, atLeast(300));
     long[] weights = new long[num];
     for(int i = 0; i < num; i++) {
       Document document = new Document();
       weights[i] = Math.abs(random().nextLong());
       document.add(newSuggestField("suggest_field", "abc", weights[i]));
       iw.addDocument(document);
-    }
-    if (rarely()) {
-      iw.commit();
+      if (rarely()) {
+        iw.commit();
+      }
     }
 
     DirectoryReader reader = iw.getReader();
@@ -183,7 +181,7 @@ public class SuggestFieldTest extends LuceneTestCase {
     // using IndexWriter instead of RandomIndexWriter
     IndexWriter iw = new IndexWriter(dir, iwcWithSuggestField(analyzer, "suggest_field"));
 
-    int num = atLeast(10);
+    int num = Math.min(1000, atLeast(10));
 
     Document document = new Document();
     int numLive = 0;
@@ -199,11 +197,15 @@ public class SuggestFieldTest extends LuceneTestCase {
       }
       iw.addDocument(document);
       document = new Document();
+
+      if (usually()) {
+        iw.commit();
+      }
     }
 
     iw.deleteDocuments(new Term("str_field", "delete"));
 
-    DirectoryReader reader = DirectoryReader.open(iw, false);
+    DirectoryReader reader = DirectoryReader.open(iw, true);
     SuggestIndexSearcher indexSearcher = new SuggestIndexSearcher(reader, analyzer);
     TopSuggestDocs suggest = indexSearcher.suggest("suggest_field", "abc_", numLive);
     assertSuggestions(suggest, expectedEntries.toArray(new Entry[expectedEntries.size()]));
@@ -216,12 +218,17 @@ public class SuggestFieldTest extends LuceneTestCase {
   public void testSuggestOnAllFilteredDocuments() throws Exception {
     Analyzer analyzer = new MockAnalyzer(random());
     RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwcWithSuggestField(analyzer, "suggest_field"));
-    int num = atLeast(10);
+    int num = Math.min(1000, atLeast(10));
     for (int i = 0; i < num; i++) {
       Document document = new Document();
       document.add(newSuggestField("suggest_field", "abc_" + i, i));
       document.add(newStringField("str_fld", "deleted", Field.Store.NO));
       iw.addDocument(document);
+
+      if (usually()) {
+        iw.commit();
+      }
+
     }
 
     Filter filter = new QueryWrapperFilter(new TermsQuery("str_fld", new BytesRef("non_existent")));
@@ -240,17 +247,21 @@ public class SuggestFieldTest extends LuceneTestCase {
     Analyzer analyzer = new MockAnalyzer(random());
     // using IndexWriter instead of RandomIndexWriter
     IndexWriter iw = new IndexWriter(dir, iwcWithSuggestField(analyzer, "suggest_field"));
-    int num = atLeast(10);
+    int num = Math.min(1000, atLeast(10));
     for (int i = 0; i < num; i++) {
       Document document = new Document();
       document.add(newSuggestField("suggest_field", "abc_" + i, i));
       document.add(newStringField("delete", "delete", Field.Store.NO));
       iw.addDocument(document);
+
+      if (usually()) {
+        iw.commit();
+      }
     }
 
     iw.deleteDocuments(new Term("delete", "delete"));
 
-    DirectoryReader reader = DirectoryReader.open(iw, false);
+    DirectoryReader reader = DirectoryReader.open(iw, true);
     SuggestIndexSearcher indexSearcher = new SuggestIndexSearcher(reader, analyzer);
     TopSuggestDocs suggest = indexSearcher.suggest("suggest_field", "abc_", num);
     assertThat(suggest.totalHits, equalTo(0));
@@ -264,12 +275,15 @@ public class SuggestFieldTest extends LuceneTestCase {
     Analyzer analyzer = new MockAnalyzer(random());
     // using IndexWriter instead of RandomIndexWriter
     IndexWriter iw = new IndexWriter(dir, iwcWithSuggestField(analyzer, "suggest_field"));
-    int num = atLeast(10);
+    int num = Math.min(1000, atLeast(10));
     for (int i = 1; i <= num; i++) {
       Document document = new Document();
       document.add(newSuggestField("suggest_field", "abc_" + i, i));
       document.add(new IntField("weight_fld", i, Field.Store.YES));
       iw.addDocument(document);
+      if (usually()) {
+        iw.commit();
+      }
     }
 
     iw.deleteDocuments(NumericRangeQuery.newIntRange("weight_fld", 2, null, true, false));
@@ -287,12 +301,15 @@ public class SuggestFieldTest extends LuceneTestCase {
   public void testSuggestOnMostlyFilteredOutDocuments() throws Exception {
     Analyzer analyzer = new MockAnalyzer(random());
     RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwcWithSuggestField(analyzer, "suggest_field"));
-    int num = atLeast(10);
+    int num = Math.min(1000, atLeast(10));
     for (int i = 0; i < num; i++) {
       Document document = new Document();
       document.add(newSuggestField("suggest_field", "abc_" + i, i));
       document.add(new IntField("filter_int_fld", i, Field.Store.NO));
       iw.addDocument(document);
+      if (usually()) {
+        iw.commit();
+      }
     }
 
     DirectoryReader reader = iw.getReader();
@@ -302,9 +319,11 @@ public class SuggestFieldTest extends LuceneTestCase {
     QueryWrapperFilter filterWrapper = new QueryWrapperFilter(NumericRangeQuery.newIntRange("filter_int_fld", 0, topScore, true, true));
     Filter filter = randomAccessFilter(filterWrapper);
     // if at most half of the top scoring documents have been filtered out
-    // the search should be admissible
-    TopSuggestDocs suggest = indexSearcher.suggest("suggest_field", "abc_", 1, filter);
-    assertSuggestions(suggest, new Entry("abc_" + topScore, topScore));
+    // the search should be admissible for a single segment
+    TopSuggestDocs suggest = indexSearcher.suggest("suggest_field", "abc_", num, filter);
+    assertTrue(suggest.totalHits >= 1);
+    assertThat(suggest.scoreLookupDocs()[0].key.toString(), equalTo("abc_" + topScore));
+    assertThat(suggest.scoreLookupDocs()[0].score, equalTo((float) topScore));
 
     filterWrapper = new QueryWrapperFilter(NumericRangeQuery.newIntRange("filter_int_fld", 0, 0, true, true));
     filter = randomAccessFilter(filterWrapper);
@@ -328,7 +347,7 @@ public class SuggestFieldTest extends LuceneTestCase {
   public void testEarlyTermination() throws Exception {
     Analyzer analyzer = new MockAnalyzer(random());
     RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwcWithSuggestField(analyzer, "suggest_field"));
-    int num = atLeast(10);
+    int num = Math.min(1000, atLeast(10));
 
     // have segments of 4 documents
     // with descending suggestion weights
@@ -355,7 +374,7 @@ public class SuggestFieldTest extends LuceneTestCase {
   public void testMultipleSegments() throws Exception {
     Analyzer analyzer = new MockAnalyzer(random());
     RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwcWithSuggestField(analyzer, "suggest_field"));
-    int num = atLeast(10);
+    int num = Math.min(1000, atLeast(10));
     List<Entry> entries = new ArrayList<>();
 
     // ensure at least some segments have no suggest field
@@ -426,7 +445,7 @@ public class SuggestFieldTest extends LuceneTestCase {
     Analyzer analyzer = new MockAnalyzer(random());
     RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwcWithSuggestField(analyzer, "suggest_field"));
 
-    int num = atLeast(10);
+    int num = Math.min(1000, atLeast(10));
     for (int i = 0; i < num; i++) {
       Document document = new Document();
       document.add(newSuggestField("suggest_field", "abc_" + i, num));
@@ -524,7 +543,7 @@ public class SuggestFieldTest extends LuceneTestCase {
     Analyzer analyzer = new MockAnalyzer(random());
     RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwcWithSuggestField(analyzer, "suggest_field"));
 
-    int num = atLeast(100);
+    int num = Math.min(1000, atLeast(10));
     String[] prefixes = {"abc", "bac", "cab"};
     Map<String, Long> mappings = new HashMap<>();
     for (int i = 0; i < num; i++) {
@@ -534,6 +553,9 @@ public class SuggestFieldTest extends LuceneTestCase {
       document.add(newSuggestField("suggest_field", suggest, weight));
       mappings.put(suggest, weight);
       iw.addDocument(document);
+      if (usually()) {
+        iw.commit();
+      }
     }
 
     DirectoryReader reader = iw.getReader();
@@ -562,7 +584,7 @@ public class SuggestFieldTest extends LuceneTestCase {
     Analyzer analyzer = new MockAnalyzer(random());
     RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwcWithSuggestField(analyzer, "suggest_field"));
     LineFileDocs lineFileDocs = new LineFileDocs(random());
-    int num = atLeast(100);
+    int num = Math.min(1000, atLeast(10));
     Map<String, Long> mappings = new HashMap<>();
     for (int i = 0; i < num; i++) {
       Document document = lineFileDocs.nextDoc();
@@ -607,7 +629,7 @@ public class SuggestFieldTest extends LuceneTestCase {
   public void testThreads() throws Exception {
     Analyzer analyzer = new MockAnalyzer(random());
     RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwcWithSuggestField(analyzer, "suggest_field_1", "suggest_field_2", "suggest_field_3"));
-    final int num = atLeast(100);
+    final int num = Math.min(1000, atLeast(10));
     final String prefix1 = "abc1_";
     final String prefix2 = "abc2_";
     final String prefix3 = "abc3_";

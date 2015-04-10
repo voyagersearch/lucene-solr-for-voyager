@@ -21,6 +21,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.PhraseQuery;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SearchEquivalenceTestBase;
 import org.apache.lucene.search.TermQuery;
 
@@ -55,6 +56,35 @@ public class TestSpanSearchEquivalence extends SearchEquivalenceTestBase {
     Term t1 = randomTerm();
     Term t2 = randomTerm();
     assertSubsetOf(new SpanNotQuery(new SpanTermQuery(t1), new SpanTermQuery(t2)), new SpanTermQuery(t1));
+  }
+  
+  /** SpanNotQuery(A, [B C]) ⊆ SpanTermQuery(A) */
+  public void testSpanNotNearVersusSpanTerm() throws Exception {
+    Term t1 = randomTerm();
+    Term t2 = randomTerm();
+    Term t3 = randomTerm();
+    SpanQuery near = new SpanNearQuery(new SpanQuery[] { new SpanTermQuery(t2), new SpanTermQuery(t3) }, 10, random().nextBoolean());
+    assertSubsetOf(new SpanNotQuery(new SpanTermQuery(t1), near), new SpanTermQuery(t1));
+  }
+  
+  /** SpanNotQuery([A B], C) ⊆ SpanNearQuery([A B]) */
+  public void testSpanNotVersusSpanNear() throws Exception {
+    Term t1 = randomTerm();
+    Term t2 = randomTerm();
+    Term t3 = randomTerm();
+    SpanQuery near = new SpanNearQuery(new SpanQuery[] { new SpanTermQuery(t1), new SpanTermQuery(t2) }, 10, random().nextBoolean());
+    assertSubsetOf(new SpanNotQuery(near, new SpanTermQuery(t3)), near);
+  }
+  
+  /** SpanNotQuery([A B], [C D]) ⊆ SpanNearQuery([A B]) */
+  public void testSpanNotNearVersusSpanNear() throws Exception {
+    Term t1 = randomTerm();
+    Term t2 = randomTerm();
+    Term t3 = randomTerm();
+    Term t4 = randomTerm();
+    SpanQuery near1 = new SpanNearQuery(new SpanQuery[] { new SpanTermQuery(t1), new SpanTermQuery(t2) }, 10, random().nextBoolean());
+    SpanQuery near2 = new SpanNearQuery(new SpanQuery[] { new SpanTermQuery(t3), new SpanTermQuery(t4) }, 10, random().nextBoolean());
+    assertSubsetOf(new SpanNotQuery(near1, near2), near1);
   }
   
   /** SpanFirstQuery(A, 10) ⊆ SpanTermQuery(A) */
@@ -105,5 +135,193 @@ public class TestSpanSearchEquivalence extends SearchEquivalenceTestBase {
     SpanNearQuery q1 = new SpanNearQuery(subquery, 3, true);
     SpanNearQuery q2 = new SpanNearQuery(subquery, 3, false);
     assertSubsetOf(q1, q2);
+  }
+  
+  /** SpanNearQuery([A B], N, false) ⊆ SpanNearQuery([A B], N+1, false) */
+  public void testSpanNearIncreasingSloppiness() throws Exception {
+    Term t1 = randomTerm();
+    Term t2 = randomTerm();
+    SpanQuery subquery[] = new SpanQuery[] { new SpanTermQuery(t1), new SpanTermQuery(t2) };
+    for (int i = 0; i < 10; i++) {
+      SpanNearQuery q1 = new SpanNearQuery(subquery, i, false);
+      SpanNearQuery q2 = new SpanNearQuery(subquery, i+1, false);
+      assertSubsetOf(q1, q2);
+    }
+  }
+  
+  /** SpanNearQuery([A B C], N, false) ⊆ SpanNearQuery([A B C], N+1, false) */
+  public void testSpanNearIncreasingSloppiness3() throws Exception {
+    Term t1 = randomTerm();
+    Term t2 = randomTerm();
+    Term t3 = randomTerm();
+    SpanQuery subquery[] = new SpanQuery[] { new SpanTermQuery(t1), new SpanTermQuery(t2), new SpanTermQuery(t3) };
+    for (int i = 0; i < 10; i++) {
+      SpanNearQuery q1 = new SpanNearQuery(subquery, i, false);
+      SpanNearQuery q2 = new SpanNearQuery(subquery, i+1, false);
+      assertSubsetOf(q1, q2);
+    }
+  }
+  
+  /** SpanNearQuery([A B], N, true) ⊆ SpanNearQuery([A B], N+1, true) */
+  public void testSpanNearIncreasingOrderedSloppiness() throws Exception {
+    Term t1 = randomTerm();
+    Term t2 = randomTerm();
+    SpanQuery subquery[] = new SpanQuery[] { new SpanTermQuery(t1), new SpanTermQuery(t2) };
+    for (int i = 0; i < 10; i++) {
+      SpanNearQuery q1 = new SpanNearQuery(subquery, i, false);
+      SpanNearQuery q2 = new SpanNearQuery(subquery, i+1, false);
+      assertSubsetOf(q1, q2);
+    }
+  }
+  
+  /** SpanNearQuery([A B C], N, true) ⊆ SpanNearQuery([A B C], N+1, true) */
+  public void testSpanNearIncreasingOrderedSloppiness3() throws Exception {
+    Term t1 = randomTerm();
+    Term t2 = randomTerm();
+    Term t3 = randomTerm();
+    SpanQuery subquery[] = new SpanQuery[] { new SpanTermQuery(t1), new SpanTermQuery(t2), new SpanTermQuery(t3) };
+    for (int i = 0; i < 10; i++) {
+      SpanNearQuery q1 = new SpanNearQuery(subquery, i, true);
+      SpanNearQuery q2 = new SpanNearQuery(subquery, i+1, true);
+      assertSubsetOf(q1, q2);
+    }
+  }
+  
+  /** SpanPositionRangeQuery(A, M, N) ⊆ TermQuery(A) */
+  public void testSpanRangeTerm() throws Exception {
+    Term t1 = randomTerm();
+    for (int i = 0; i < 5; i++) {
+      for (int j = 0; j < 5; j++) {
+        Query q1 = new SpanPositionRangeQuery(new SpanTermQuery(t1), i, i+j);
+        Query q2 = new TermQuery(t1);
+        assertSubsetOf(q1, q2);
+      }
+    }
+  }
+  
+  /** SpanPositionRangeQuery(A, M, N) ⊆ SpanFirstQuery(A, M, N+1) */
+  public void testSpanRangeTermIncreasingEnd() throws Exception {
+    Term t1 = randomTerm();
+    for (int i = 0; i < 5; i++) {
+      for (int j = 0; j < 5; j++) {
+        Query q1 = new SpanPositionRangeQuery(new SpanTermQuery(t1), i, i+j);
+        Query q2 = new SpanPositionRangeQuery(new SpanTermQuery(t1), i, i+j+1);
+        assertSubsetOf(q1, q2);
+      }
+    }
+  }
+  
+  /** SpanPositionRangeQuery(A, 0, ∞) = TermQuery(A) */
+  public void testSpanRangeTermEverything() throws Exception {
+    Term t1 = randomTerm();
+    Query q1 = new SpanPositionRangeQuery(new SpanTermQuery(t1), 0, Integer.MAX_VALUE);
+    Query q2 = new TermQuery(t1);
+    assertSameSet(q1, q2);
+  }
+  
+  /** SpanPositionRangeQuery([A B], M, N) ⊆ SpanNearQuery([A B]) */
+  public void testSpanRangeNear() throws Exception {
+    Term t1 = randomTerm();
+    Term t2 = randomTerm();
+    SpanQuery subquery[] = new SpanQuery[] { new SpanTermQuery(t1), new SpanTermQuery(t2) };
+    SpanQuery nearQuery = new SpanNearQuery(subquery, 10, true);
+    for (int i = 0; i < 5; i++) {
+      for (int j = 0; j < 5; j++) {
+        Query q1 = new SpanPositionRangeQuery(nearQuery, i, i+j);
+        Query q2 = nearQuery;
+        assertSubsetOf(q1, q2);
+      }
+    }
+  }
+  
+  /** SpanPositionRangeQuery([A B], M, N) ⊆ SpanFirstQuery([A B], M, N+1) */
+  public void testSpanRangeNearIncreasingEnd() throws Exception {
+    Term t1 = randomTerm();
+    Term t2 = randomTerm();
+    SpanQuery subquery[] = new SpanQuery[] { new SpanTermQuery(t1), new SpanTermQuery(t2) };
+    SpanQuery nearQuery = new SpanNearQuery(subquery, 10, true);
+    for (int i = 0; i < 5; i++) {
+      for (int j = 0; j < 5; j++) {
+        Query q1 = new SpanPositionRangeQuery(nearQuery, i, i+j);
+        Query q2 = new SpanPositionRangeQuery(nearQuery, i, i+j+1);
+        assertSubsetOf(q1, q2);
+      }
+    }
+  }
+  
+  /** SpanPositionRangeQuery([A B], ∞) = SpanNearQuery([A B]) */
+  public void testSpanRangeNearEverything() throws Exception {
+    Term t1 = randomTerm();
+    Term t2 = randomTerm();
+    SpanQuery subquery[] = new SpanQuery[] { new SpanTermQuery(t1), new SpanTermQuery(t2) };
+    SpanQuery nearQuery = new SpanNearQuery(subquery, 10, true);
+    Query q1 = new SpanPositionRangeQuery(nearQuery, 0, Integer.MAX_VALUE);
+    Query q2 = nearQuery;
+    assertSameSet(q1, q2);
+  }
+  
+  /** SpanFirstQuery(A, N) ⊆ TermQuery(A) */
+  public void testSpanFirstTerm() throws Exception {
+    Term t1 = randomTerm();
+    for (int i = 0; i < 10; i++) {
+      Query q1 = new SpanFirstQuery(new SpanTermQuery(t1), i);
+      Query q2 = new TermQuery(t1);
+      assertSubsetOf(q1, q2);
+    }
+  }
+  
+  /** SpanFirstQuery(A, N) ⊆ SpanFirstQuery(A, N+1) */
+  public void testSpanFirstTermIncreasing() throws Exception {
+    Term t1 = randomTerm();
+    for (int i = 0; i < 10; i++) {
+      Query q1 = new SpanFirstQuery(new SpanTermQuery(t1), i);
+      Query q2 = new SpanFirstQuery(new SpanTermQuery(t1), i+1);
+      assertSubsetOf(q1, q2);
+    }
+  }
+  
+  /** SpanFirstQuery(A, ∞) = TermQuery(A) */
+  public void testSpanFirstTermEverything() throws Exception {
+    Term t1 = randomTerm();
+    Query q1 = new SpanFirstQuery(new SpanTermQuery(t1), Integer.MAX_VALUE);
+    Query q2 = new TermQuery(t1);
+    assertSameSet(q1, q2);
+  }
+  
+  /** SpanFirstQuery([A B], N) ⊆ SpanNearQuery([A B]) */
+  public void testSpanFirstNear() throws Exception {
+    Term t1 = randomTerm();
+    Term t2 = randomTerm();
+    SpanQuery subquery[] = new SpanQuery[] { new SpanTermQuery(t1), new SpanTermQuery(t2) };
+    SpanQuery nearQuery = new SpanNearQuery(subquery, 10, true);
+    for (int i = 0; i < 10; i++) {
+      Query q1 = new SpanFirstQuery(nearQuery, i);
+      Query q2 = nearQuery;
+      assertSubsetOf(q1, q2);
+    }
+  }
+  
+  /** SpanFirstQuery([A B], N) ⊆ SpanFirstQuery([A B], N+1) */
+  public void testSpanFirstNearIncreasing() throws Exception {
+    Term t1 = randomTerm();
+    Term t2 = randomTerm();
+    SpanQuery subquery[] = new SpanQuery[] { new SpanTermQuery(t1), new SpanTermQuery(t2) };
+    SpanQuery nearQuery = new SpanNearQuery(subquery, 10, true);
+    for (int i = 0; i < 10; i++) {
+      Query q1 = new SpanFirstQuery(nearQuery, i);
+      Query q2 = new SpanFirstQuery(nearQuery, i+1);
+      assertSubsetOf(q1, q2);
+    }
+  }
+  
+  /** SpanFirstQuery([A B], ∞) = SpanNearQuery([A B]) */
+  public void testSpanFirstNearEverything() throws Exception {
+    Term t1 = randomTerm();
+    Term t2 = randomTerm();
+    SpanQuery subquery[] = new SpanQuery[] { new SpanTermQuery(t1), new SpanTermQuery(t2) };
+    SpanQuery nearQuery = new SpanNearQuery(subquery, 10, true);
+    Query q1 = new SpanFirstQuery(nearQuery, Integer.MAX_VALUE);
+    Query q2 = nearQuery;
+    assertSameSet(q1, q2);
   }
 }

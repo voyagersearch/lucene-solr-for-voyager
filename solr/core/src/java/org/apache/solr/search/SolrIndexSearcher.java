@@ -795,12 +795,11 @@ public class SolrIndexSearcher extends IndexSearcher implements Closeable,SolrIn
     Terms terms = leafReader.terms(t.field());
     if (terms == null) return -1;
     BytesRef termBytes = t.bytes();
-    final TermsEnum termsEnum = terms.iterator(null);
+    final TermsEnum termsEnum = terms.iterator();
     if (!termsEnum.seekExact(termBytes)) {
       return -1;
     }
     PostingsEnum docs = termsEnum.postings(leafReader.getLiveDocs(), null, PostingsEnum.NONE);
-    if (docs == null) return -1;
     int id = docs.nextDoc();
     return id == DocIdSetIterator.NO_MORE_DOCS ? -1 : id;
   }
@@ -819,7 +818,7 @@ public class SolrIndexSearcher extends IndexSearcher implements Closeable,SolrIn
       final Terms terms = reader.terms(field);
       if (terms == null) continue;
       
-      TermsEnum te = terms.iterator(null);
+      TermsEnum te = terms.iterator();
       if (te.seekExact(idBytes)) {
         PostingsEnum docs = te.postings(reader.getLiveDocs(), null, PostingsEnum.NONE);
         int id = docs.nextDoc();

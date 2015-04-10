@@ -97,6 +97,7 @@ import org.apache.lucene.search.AssertingIndexSearcher;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.LRUQueryCache;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.QueryUtils.FCInvisibleMultiReader;
@@ -1651,18 +1652,27 @@ public abstract class LuceneTestCase extends Assert {
     }
   }
 
+  private static final QueryCache DEFAULT_QUERY_CACHE = IndexSearcher.getDefaultQueryCache();
+  private static final QueryCachingPolicy DEFAULT_CACHING_POLICY = IndexSearcher.getDefaultQueryCachingPolicy();
+
   @Before
-  public void resetTestDefaultQueryCache() {
+  public void overrideTestDefaultQueryCache() {
     // Make sure each test method has its own cache
-    resetDefaultQueryCache();
+    overrideDefaultQueryCache();
   }
 
   @BeforeClass
-  public static void resetDefaultQueryCache() {
+  public static void overrideDefaultQueryCache() {
     // we need to reset the query cache in an @BeforeClass so that tests that
     // instantiate an IndexSearcher in an @BeforeClass method use a fresh new cache
     IndexSearcher.setDefaultQueryCache(new LRUQueryCache(10000, 1 << 25));
     IndexSearcher.setDefaultQueryCachingPolicy(MAYBE_CACHE_POLICY);
+  }
+
+  @AfterClass
+  public static void resetDefaultQueryCache() {
+    IndexSearcher.setDefaultQueryCache(DEFAULT_QUERY_CACHE);
+    IndexSearcher.setDefaultQueryCachingPolicy(DEFAULT_CACHING_POLICY);
   }
 
   /**
@@ -1850,8 +1860,8 @@ public abstract class LuceneTestCase extends Assert {
     assertEquals(leftTerms.hasPositions(), rightTerms.hasPositions());
     assertEquals(leftTerms.hasPayloads(), rightTerms.hasPayloads());
 
-    TermsEnum leftTermsEnum = leftTerms.iterator(null);
-    TermsEnum rightTermsEnum = rightTerms.iterator(null);
+    TermsEnum leftTermsEnum = leftTerms.iterator();
+    TermsEnum rightTermsEnum = rightTerms.iterator();
     assertTermsEnumEquals(info, leftReader, leftTermsEnum, rightTermsEnum, true);
     
     assertTermsSeekingEquals(info, leftTerms, rightTerms);
@@ -1985,11 +1995,8 @@ public abstract class LuceneTestCase extends Assert {
    * checks docs + freqs + positions + payloads, sequentially
    */
   public void assertDocsAndPositionsEnumEquals(String info, PostingsEnum leftDocs, PostingsEnum rightDocs) throws IOException {
-    if (leftDocs == null || rightDocs == null) {
-      assertNull(leftDocs);
-      assertNull(rightDocs);
-      return;
-    }
+    assertNotNull(leftDocs);
+    assertNotNull(rightDocs);
     assertEquals(info, -1, leftDocs.docID());
     assertEquals(info, -1, rightDocs.docID());
     int docid;
@@ -2100,18 +2107,18 @@ public abstract class LuceneTestCase extends Assert {
 
   
   private void assertTermsSeekingEquals(String info, Terms leftTerms, Terms rightTerms) throws IOException {
-    TermsEnum leftEnum = null;
-    TermsEnum rightEnum = null;
 
     // just an upper bound
     int numTests = atLeast(20);
     Random random = random();
 
+    TermsEnum leftEnum = null;
+
     // collect this number of terms from the left side
     HashSet<BytesRef> tests = new HashSet<>();
     int numPasses = 0;
     while (numPasses < 10 && tests.size() < numTests) {
-      leftEnum = leftTerms.iterator(leftEnum);
+      leftEnum = leftTerms.iterator();
       BytesRef term = null;
       while ((term = leftEnum.next()) != null) {
         int code = random.nextInt(10);
@@ -2149,16 +2156,16 @@ public abstract class LuceneTestCase extends Assert {
       numPasses++;
     }
 
-    rightEnum = rightTerms.iterator(rightEnum);
+    TermsEnum rightEnum = rightTerms.iterator();
 
     ArrayList<BytesRef> shuffledTests = new ArrayList<>(tests);
     Collections.shuffle(shuffledTests, random);
 
     for (BytesRef b : shuffledTests) {
       if (rarely()) {
-        // reuse the enums
-        leftEnum = leftTerms.iterator(leftEnum);
-        rightEnum = rightTerms.iterator(rightEnum);
+        // make new enums
+        leftEnum = leftTerms.iterator();
+        rightEnum = rightTerms.iterator();
       }
 
       final boolean seekExact = random().nextBoolean();

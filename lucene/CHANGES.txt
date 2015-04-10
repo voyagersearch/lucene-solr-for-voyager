@@ -25,6 +25,10 @@ New Features
   dictionary, exposed as AutoPrefixPostingsFormat (Adrien Grand,
   Uwe Schindler, Robert Muir, Mike McCandless)
 
+* LUCENE-5579: New CompositeSpatialStrategy combines speed of RPT with
+  accuracy of SDV. Includes optimized Intersect predicate to avoid many
+  geometry checks. Uses TwoPhaseIterator. (David Smiley)
+
 Optimizations
 
 * LUCENE-6379: IndexWriter.deleteDocuments(Query...) now detects if
@@ -58,6 +62,9 @@ Other
 * LUCENE-6315: Simplify the private iterator Lucene uses internally
   when resolving deleted terms to matched docids. (Robert Muir, Adrien
   Grand, Mike McCandless)
+
+* LUCENE-6399: Benchmark module's QueryMaker.resetInputs should call setConfig
+  so queries can react to property changes in new rounds. (David Smiley)
 
 ======================= Lucene 5.1.0 =======================
 

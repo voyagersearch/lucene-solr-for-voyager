@@ -32,11 +32,18 @@ Detailed Change List
 New Features
 ----------------------
 
-* SOLR-6637: Solr should have a way to restore a core from a backed up index.
+* SOLR-6637: Restore a Solr core from a backed up index.
+  Restore API Example -
+    http://localhost:8983/solr/techproducts/replication?command=restore&name=backup_name
+  Restore Status API Example -
+    http://localhost:8983/solr/techproducts/replication?command=restorestatus
   (Varun Thacker, noble, shalin)
 
 * SOLR-7241, SOLR-7263, SOLR-7279: More functionality moving the Admin UI to Angular JS
   (Upayavira via Erick)
+
+* SOLR-7372: Limit memory consumed by LRUCache with a new 'maxRamMB' config parameter.
+  (yonik, shalin)
 
 Bug Fixes
 ----------------------
@@ -46,13 +53,21 @@ Bug Fixes
 
 * SOLR-7066: autoAddReplicas feature has bug when selecting replacement nodes. (Mark Miller)
 
+* SOLR-7370: FSHDFSUtils#recoverFileLease tries to recover the lease every one second after 
+  the first four second wait. (Mark Miller)
+
 * SOLR-7369: AngularJS UI insufficient URLDecoding in cloud/tree view (janhoy)
+
+* SOLR-7380: SearchHandler should not try to load runtime components in inform() (Noble Paul)
+
+* SOLR-7385: The clusterstatus API now returns the config set used to create a collection
+  inside a 'configName' key. (Shai Erera, shalin)
 
 Optimizations
 ----------------------
 
- * SOLR-7324: IndexFetcher does not need to call isIndexStale if full copy is already needed
-   (Stephan Lagraulet via Varun Thacker)
+* SOLR-7324: IndexFetcher does not need to call isIndexStale if full copy is already needed
+  (Stephan Lagraulet via Varun Thacker)
 
 Other Changes
 ----------------------
@@ -62,6 +77,23 @@ Other Changes
 * SOLR-7358: TestRestoreCore fails in Windows (Ishan Chattopadhyaya via Varun Thacker)
 
 * SOLR-7371: Make DocSet implement Accountable to estimate memory usage. (yonik, shalin)
+
+* SOLR-7381: Improve logging by adding node name in MDC in SolrCloud mode and adding MDC to
+  all thread pools. A new MDCAwareThreadPoolExecutor is introduced and usages of
+  Executors#newFixedThreadPool, #newSingleThreadExecutor, #newCachedThreadPool as well as
+  ThreadPoolExecutor directly is now forbidden in Solr. MDC keys are now exposed in thread
+  names automatically so that a thread dump can give hints on what the thread was doing.
+  (shalin)
+
+* SOLR-7384: Fix spurious failures in FullSolrCloudDistribCmdsTest. (shalin)
+
+* SOLR-6692: Default highlighter changes:
+  - hl.maxAnalyzedChars now applies cumulatively on a multi-valied field.
+  - fragment ranking on a multi-valued field should be more relevant.
+  - hl.usePhraseHighlighter is now toggleable on a per-field basis.
+  - Much more extensible (get values from another source; return snippet scores and offsets).
+  - When using hl.maxMultiValuedToMatch with hl.preserveMulti, only count matched snippets.
+  (David Smiley)
 
 ==================  5.1.0 ==================
 
@@ -375,6 +407,8 @@ Optimizations
 
  * SOLR-7239: improved performance of min & max in StatsComponent, as well as situations 
    where local params disable all stats (hossman)
+
+ * SOLR-7110: Optimize JavaBinCodec to minimize string Object creation (Noble Paul)
 
 Other Changes
 ----------------------

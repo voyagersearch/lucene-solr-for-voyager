@@ -60,6 +60,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.google.common.base.Strings;
+import org.slf4j.MDC;
 
 public class HttpShardHandler extends ShardHandler {
 
@@ -178,8 +179,6 @@ public class HttpShardHandler extends ShardHandler {
   public void submit(final ShardRequest sreq, final String shard, final ModifiableSolrParams params) {
     // do this outside of the callable for thread safety reasons
     final List<String> urls = getURLs(sreq, shard);
-    if (Strings.isNullOrEmpty(shard))
-      System.out.println("Empty shard!");
 
     Callable<ShardResponse> task = new Callable<ShardResponse>() {
       @Override
@@ -241,7 +240,18 @@ public class HttpShardHandler extends ShardHandler {
       }
     };
 
-    pending.add( completionService.submit(task) );
+    try {
+      if (shard != null)  {
+        MDC.put("ShardRequest.shards", shard);
+      }
+      if (urls != null && !urls.isEmpty())  {
+        MDC.put("ShardRequest.urlList", urls.toString());
+      }
+      pending.add( completionService.submit(task) );
+    } finally {
+      MDC.remove("ShardRequest.shards");
+      MDC.remove("ShardRequest.urlList");
+    }
   }
   
   /**

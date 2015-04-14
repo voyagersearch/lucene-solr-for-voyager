@@ -78,6 +78,7 @@ import org.apache.solr.common.params.CoreAdminParams.CoreAdminAction;
 import org.apache.solr.common.params.MapSolrParams;
 import org.apache.solr.common.params.ModifiableSolrParams;
 import org.apache.solr.common.params.ShardParams;
+import org.apache.solr.common.util.ExecutorUtil;
 import org.apache.solr.common.util.NamedList;
 import org.apache.solr.common.util.SimpleOrderedMap;
 import org.apache.solr.common.util.StrUtils;
@@ -258,7 +259,7 @@ public class OverseerCollectionProcessor implements Runnable, Closeable {
 
     // TODO: Make maxThreads configurable.
 
-    this.tpe = new ThreadPoolExecutor(5, 100, 0L, TimeUnit.MILLISECONDS,
+    this.tpe = new ExecutorUtil.MDCAwareThreadPoolExecutor(5, 100, 0L, TimeUnit.MILLISECONDS,
         new SynchronousQueue<Runnable>(),
         new DefaultSolrThreadFactory("OverseerThreadFactory"));
     try {
@@ -822,6 +823,8 @@ public class OverseerCollectionProcessor implements Runnable, Closeable {
         if (collectionVsAliases.containsKey(name) && !collectionVsAliases.get(name).isEmpty())  {
           collectionStatus.put("aliases", collectionVsAliases.get(name));
         }
+        String configName = zkStateReader.readConfigName(name);
+        collectionStatus.put("configName", configName);
         collectionProps.add(name, collectionStatus);
       }
     } else {
@@ -838,6 +841,8 @@ public class OverseerCollectionProcessor implements Runnable, Closeable {
         if (collectionVsAliases.containsKey(collection) && !collectionVsAliases.get(collection).isEmpty())  {
           collectionStatus.put("aliases", collectionVsAliases.get(collection));
         }
+        String configName = zkStateReader.readConfigName(collection);
+        collectionStatus.put("configName", configName);
         collectionProps.add(collection, collectionStatus);
       } else {
         DocCollection coll = clusterState.getCollection(collection);
@@ -854,6 +859,8 @@ public class OverseerCollectionProcessor implements Runnable, Closeable {
         if (collectionVsAliases.containsKey(collection) && !collectionVsAliases.get(collection).isEmpty())  {
           collectionStatus.put("aliases", collectionVsAliases.get(collection));
         }
+        String configName = zkStateReader.readConfigName(collection);
+        collectionStatus.put("configName", configName);
         collectionProps.add(collection, collectionStatus);
       }
     }

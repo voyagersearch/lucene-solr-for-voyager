@@ -17,6 +17,10 @@ New Features
   and its subclasses: SpanPositionRangeQuery, SpanPayloadCheckQuery, 
   SpanNearPayloadCheckQuery, SpanFirstQuery. (Paul Elschot, Robert Muir)
 
+* LUCENE-6394: Add two-phase support to SpanNotQuery and refactor
+  FilterSpans to just have an accept(Spans candidate) method for
+  subclasses. (Robert Muir)
+
 * LUCENE-6352: Added a new query time join to the join module that uses
   global ordinals, which is faster for subsequent joins between reopens.
   (Martijn van Groningen, Adrien Grand)
@@ -28,6 +32,11 @@ New Features
 * LUCENE-5579: New CompositeSpatialStrategy combines speed of RPT with
   accuracy of SDV. Includes optimized Intersect predicate to avoid many
   geometry checks. Uses TwoPhaseIterator. (David Smiley)
+
+* LUCENE-5989: Allow passing BytesRef to StringField to make it easier
+  to index arbitrary binary tokens, and change the experimental
+  StoredFieldVisitor.stringField API to take UTF-8 byte[] instead of
+  String (Mike McCandless)
 
 Optimizations
 
@@ -43,6 +52,15 @@ Bug Fixes
 
 * LUCENE-6378: Fix all RuntimeExceptions to throw the underlying root cause.
   (Varun Thacker, Adrien Grand, Mike McCandless)
+
+* LUCENE-6415: TermsQuery.extractTerms is a no-op (used to throw an
+  UnsupportedOperationException). (Adrien Grand)
+
+* LUCENE-6416: BooleanQuery.extractTerms now only extracts terms from scoring
+  clauses. (Adrien Grand)
+
+* LUCENE-6409: Fixed integer overflow in LongBitSet.ensureCapacity.
+  (Luc Vanlerberghe via Adrien Grand)
 
 API Changes
 
@@ -65,6 +83,10 @@ Other
 
 * LUCENE-6399: Benchmark module's QueryMaker.resetInputs should call setConfig
   so queries can react to property changes in new rounds. (David Smiley)
+
+Build
+
+* LUCENE-6420: Update forbiddenapis to v1.8  (Uwe Schindler)
 
 ======================= Lucene 5.1.0 =======================
 

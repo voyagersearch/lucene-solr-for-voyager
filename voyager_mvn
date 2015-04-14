@@ -13,7 +13,7 @@ rm -rf /Users/ryan/workspace/m2-repository/org/apache/solr
 rm -rf /Users/ryan/workspace/m2-repository/org/apache/lucene
 
 # now get the poms with out special version
-ant -Dversion=5.2.0-VG4 get-maven-poms
+ant -Dversion=5.2.0-VG5 get-maven-poms
 cd maven-build
 mvn -DskipTests source:jar-no-fork install
 

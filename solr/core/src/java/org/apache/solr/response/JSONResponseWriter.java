@@ -37,10 +37,6 @@ import org.apache.solr.schema.SchemaField;
 import org.apache.solr.search.ReturnFields;
 import org.apache.solr.search.SolrReturnFields;
 
-import com.spatial4j.core.io.ShapeIO;
-import com.spatial4j.core.io.ShapeWriter;
-import com.spatial4j.core.shape.Shape;
-
 /**
  *
  */
@@ -589,17 +585,6 @@ class JSONWriter extends TextResponseWriter {
   @Override
   public void writeDate(String name, String val) throws IOException {
     writeStr(name, val, false);
-  }
-
-  
-  @Override
-  public void writeShape(String name, Shape val) throws IOException {
-    ShapeWriter enc = val.getContext().getFormats().getGeoJsonWriter();
-    if(enc!=null) {
-      enc.write(writer, val);
-    } else {
-      super.writeShape(name, val);
-    }
   }
 
   private static char[] hexdigits = {'0','1','2','3','4','5','6','7','8','9','a','b','c','d','e','f'};

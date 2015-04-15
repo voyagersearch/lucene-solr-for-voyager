@@ -41,10 +41,6 @@ import org.apache.solr.schema.SchemaField;
 import org.apache.solr.search.DocList;
 import org.apache.solr.search.ReturnFields;
 
-import com.spatial4j.core.io.ShapeIO;
-import com.spatial4j.core.io.ShapeWriter;
-import com.spatial4j.core.shape.Shape;
-
 /** Base class for text-oriented response writers.
  *
  *
@@ -193,8 +189,6 @@ public abstract class TextResponseWriter {
       writeNamedList(name, (NamedList)val);
     } else if (val instanceof TupleStream) {
       writeTupleStream((TupleStream) val);
-    } else if (val instanceof Shape) {
-      writeShape(name,(Shape)val);
     } else if (val instanceof Iterable) {
       writeArray(name,((Iterable)val).iterator());
     } else if (val instanceof Object[]) {
@@ -210,7 +204,7 @@ public abstract class TextResponseWriter {
     } else if (val instanceof EnumFieldValue) {
       writeStr(name, val.toString(), true);
     } else if (val instanceof WriteableValue) {
-      ((WriteableValue)val).write(this);
+      ((WriteableValue)val).write(name, this);
     } else {
       // default... for debugging only
       writeStr(name, val.getClass().getName() + ':' + val.toString(), true);
@@ -281,17 +275,6 @@ public abstract class TextResponseWriter {
 
   public void writeArray(String name, Object[] val) throws IOException {
     writeArray(name, Arrays.asList(val).iterator());
-  }
-
-  /** Use WKT to write the shape **/
-  public void writeShape(String name, Shape val) throws IOException {
-    ShapeWriter enc = val.getContext().getFormats().getWktWriter();
-    if(enc!=null) {
-      writeStr(name, enc.toString(val), true);
-    }
-    else {
-      writeStr(name, val.getContext().toString(val), true);
-    }
   }
   
   public abstract void writeArray(String name, Iterator val) throws IOException;

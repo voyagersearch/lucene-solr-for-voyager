@@ -39,9 +39,6 @@ public abstract class TransformerFactory implements NamedListInitializedPlugin
     defaultUserArgs = (String)args.get( "args" );
   }
 
-  /**
-   * Can return null as a 'noop'
-   */
   public abstract DocTransformer create(String field, SolrParams params, SolrQueryRequest req);
 
   public static final Map<String,TransformerFactory> defaultFactories = new HashMap<>();
@@ -50,7 +47,8 @@ public abstract class TransformerFactory implements NamedListInitializedPlugin
     defaultFactories.put( "value", new ValueAugmenterFactory() );
     defaultFactories.put( "docid", new DocIdAugmenterFactory() );
     defaultFactories.put( "shard", new ShardAugmenterFactory() );
-    defaultFactories.put( "raw", new RawValueTransformerFactory() );
     defaultFactories.put( "child", new ChildDocTransformerFactory() );
+    defaultFactories.put( "json", new RawValueTransformerFactory("json") );
+    defaultFactories.put( "xml", new RawValueTransformerFactory("xml") );
   }
 }

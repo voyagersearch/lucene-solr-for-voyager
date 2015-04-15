@@ -48,6 +48,9 @@ Optimizations
 * LUCENE-6388: Optimize SpanNearQuery when payloads are not present.
   (Robert Muir)
 
+* LUCENE-6421: Defer reading of positions in MultiPhraseQuery until
+  they are needed. (Robert Muir)
+
 Bug Fixes
 
 * LUCENE-6378: Fix all RuntimeExceptions to throw the underlying root cause.
@@ -61,6 +64,13 @@ Bug Fixes
 
 * LUCENE-6409: Fixed integer overflow in LongBitSet.ensureCapacity.
   (Luc Vanlerberghe via Adrien Grand)
+
+* LUCENE-6424: Fix many bugs with mockfs filesystems in the test-framework:
+  always consistently wrap Path, fix buggy behavior for globs, etc.  
+  (Ryan Ernst, Simon Willnauer, Robert Muir)
+
+* LUCENE-6426: Fix FieldType's copy constructor to also copy over the numeric
+  precision step. (Adrien Grand)
 
 API Changes
 
@@ -90,6 +100,11 @@ Other
 Build
 
 * LUCENE-6420: Update forbiddenapis to v1.8  (Uwe Schindler)
+
+Test Framework
+
+* LUCENE-6419: Added two-phase iteration assertions to AssertingQuery.
+  (Adrien Grand)
 
 ======================= Lucene 5.1.0 =======================
 

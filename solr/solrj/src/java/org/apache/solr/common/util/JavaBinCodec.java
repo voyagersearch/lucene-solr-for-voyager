@@ -16,29 +16,19 @@
  */
 package org.apache.solr.common.util;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
-
 import org.apache.solr.common.EnumFieldValue;
+import org.noggit.CharArr;
 import org.apache.solr.common.SolrDocument;
 import org.apache.solr.common.SolrDocumentList;
 import org.apache.solr.common.SolrInputDocument;
 import org.apache.solr.common.SolrInputField;
-import org.noggit.CharArr;
 
-import com.spatial4j.core.shape.Shape;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.util.*;
+import java.util.Map.Entry;
+import java.nio.ByteBuffer;
 
 /**
  * The class is designed to optimaly serialize/deserialize any supported types in Solr response. As we know there are only a limited type of
@@ -737,10 +727,6 @@ public class JavaBinCodec {
       return true;
     } else if (val == END_OBJ) {
       writeTag(END);
-      return true;
-    } else if (val instanceof Shape) {
-      Shape shp = (Shape)val;
-      writeStr(shp.getContext().getFormats().getGeoJsonWriter().toString(shp));
       return true;
     }
     return false;

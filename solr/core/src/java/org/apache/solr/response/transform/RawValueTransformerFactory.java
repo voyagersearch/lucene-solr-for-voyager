@@ -22,12 +22,12 @@ import java.util.Collection;
 
 import org.apache.lucene.index.IndexableField;
 import org.apache.solr.common.SolrDocument;
+import org.apache.solr.common.params.CommonParams;
 import org.apache.solr.common.params.SolrParams;
 import org.apache.solr.common.util.JavaBinCodec;
-import org.apache.solr.common.util.NamedList;
 import org.apache.solr.common.util.JavaBinCodec.ObjectResolver;
+import org.apache.solr.common.util.NamedList;
 import org.apache.solr.request.SolrQueryRequest;
-import org.apache.solr.response.JSONResponseWriter;
 import org.apache.solr.response.QueryResponseWriter;
 import org.apache.solr.response.TextResponseWriter;
 import org.apache.solr.response.WriteableValue;
@@ -39,11 +39,22 @@ import com.google.common.base.Strings;
  */
 public class RawValueTransformerFactory extends TransformerFactory
 {
-  protected Class<? extends QueryResponseWriter> rawWriterClass = JSONResponseWriter.class;
+  String applyToWT = null;
+  
+  public RawValueTransformerFactory() {
+    
+  }
 
+  public RawValueTransformerFactory(String wt) {
+    this.applyToWT = wt;
+  }
+  
   @Override
   public void init(NamedList args) {
-    defaultUserArgs = (String)args.get( "args" );
+    super.init(args);
+    if(defaultUserArgs!=null&&defaultUserArgs.startsWith("wt=")) {
+      applyToWT = defaultUserArgs.substring(3);
+    }
   }
   
   @Override
@@ -52,10 +63,26 @@ public class RawValueTransformerFactory extends TransformerFactory
     if(Strings.isNullOrEmpty(field)) {
       field = display;
     }
-    QueryResponseWriter writer = req.getCore().getQueryResponseWriter(req);
-    if(rawWriterClass.isInstance(writer)) {
+    // When a 'wt' is specified in the transformer, only apply it to the same wt
+    boolean apply = true;
+    if(applyToWT!=null) {
+      String qwt = req.getParams().get(CommonParams.WT);
+      if(qwt==null) {
+        QueryResponseWriter qw = req.getCore().getQueryResponseWriter(req);
+        QueryResponseWriter dw = req.getCore().getQueryResponseWriter(applyToWT);
+        if(qw!=dw) {
+          apply = false;
+        }
+      }
+      else {
+        apply = applyToWT.equals(qwt);
+      }
+    }
+
+    if(apply) {
       return new RawTransformer( field, display );
     }
+    
     if(field.equals(display)) {
       return null; // nothing
     }
@@ -107,7 +134,7 @@ public class RawValueTransformerFactory extends TransformerFactory
     }
     
     @Override
-    public void write(TextResponseWriter writer) throws IOException {
+    public void write(String name, TextResponseWriter writer) throws IOException {
       String str = null;
       if(val instanceof IndexableField) { // delays holding it in memory
         str = ((IndexableField)val).stringValue();
@@ -129,6 +156,4 @@ public class RawValueTransformerFactory extends TransformerFactory
     }
   }
 }
-
-
 

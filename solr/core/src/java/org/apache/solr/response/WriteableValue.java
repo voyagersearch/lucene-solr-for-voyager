@@ -1,9 +1,3 @@
-package org.apache.solr.response;
-
-import java.io.IOException;
-
-import org.apache.solr.common.util.JavaBinCodec.ObjectResolver;
-
 /*
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
@@ -20,7 +14,12 @@ import org.apache.solr.common.util.JavaBinCodec.ObjectResolver;
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+package org.apache.solr.response;
+
+import java.io.IOException;
+
+import org.apache.solr.common.util.JavaBinCodec.ObjectResolver;
 
 public abstract class WriteableValue implements ObjectResolver {
-  public abstract void write(TextResponseWriter writer) throws IOException;
+  public abstract void write(String name, TextResponseWriter writer) throws IOException;
 }

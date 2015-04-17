@@ -1,5 +1,10 @@
 ant clean-maven-build
 
+version=5.2.0-VG7
+mvn_repo=/Users/jdeolive/Projects/voyager/git/mvn
+
+mvn_opts="-Dmaven.repo.local=${mvn_repo}"
+
 # Replace the revision in:
 # dev-tools/maven/pom.xml.template:          <revisionOnScmFailure>NO-REVISION-AVAILABLE</revisionOnScmFailure>
 
@@ -9,24 +14,24 @@ git checkout dev-tools/maven/pom.xml.template
 sed -i.bak 's/NO-REVISION-AVAILABLE/'"${REV}"'/' dev-tools/maven/pom.xml.template 
 rm dev-tools/maven/pom.xml.template.bak
 
-rm -rf /Users/ryan/workspace/m2-repository/org/apache/solr
-rm -rf /Users/ryan/workspace/m2-repository/org/apache/lucene
+rm -rf ${mvn_repo}/org/apache/solr
+rm -rf ${mvn_repo}/org/apache/lucene
 
 # now get the poms with out special version
-ant -Dversion=5.2.0-VG6 get-maven-poms
+ant -Dversion=${version} get-maven-poms
 
 git checkout dev-tools/maven/pom.xml.template
 
 cd maven-build
-mvn -DskipTests source:jar-no-fork install
+mvn ${mvn_opts} -DskipTests source:jar-no-fork install
 
-rm -rf /Users/ryan/workspace/m2-repository/org/apache/XXXX
-mkdir /Users/ryan/workspace/m2-repository/org/apache/XXXX
-mv /Users/ryan/workspace/m2-repository/org/apache/solr /Users/ryan/workspace/m2-repository/org/apache/XXXX
-mv /Users/ryan/workspace/m2-repository/org/apache/lucene /Users/ryan/workspace/m2-repository/org/apache/XXXX
+rm -rf ${mvn_repo}/org/apache/XXXX
+mkdir ${mvn_repo}/org/apache/XXXX
+mv ${mvn_repo}/org/apache/solr ${mvn_repo}/org/apache/XXXX
+mv ${mvn_repo}/org/apache/lucene ${mvn_repo}/org/apache/XXXX
 
-find /Users/ryan/workspace/m2-repository/org/apache/XXXX -name "maven-metadata-local.xml" -exec rm -rf {} \;
-find /Users/ryan/workspace/m2-repository/org/apache/XXXX -name "_maven.repositories" -exec rm -rf {} \;
+find ${mvn_repo}/org/apache/XXXX -name "maven-metadata-local.xml" -exec rm -rf {} \;
+find ${mvn_repo}/org/apache/XXXX -name "_maven.repositories" -exec rm -rf {} \;
 
-open /Users/ryan/workspace/m2-repository/org/apache/XXXX
-du -hs /Users/ryan/workspace/m2-repository/org/apache/XXXX
+open ${mvn_repo}/org/apache/XXXX
+du -hs ${mvn_repo}/org/apache/XXXX

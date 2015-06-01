@@ -19,7 +19,7 @@ package org.apache.lucene.spatial.prefix;
 
 import java.io.IOException;
 
-import com.spatial4j.core.SpatialPredicate;
+import org.apache.lucene.spatial.query.SpatialOperation;
 import com.spatial4j.core.context.SpatialContext;
 import com.spatial4j.core.distance.DistanceUtils;
 import com.spatial4j.core.shape.Circle;
@@ -38,7 +38,7 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
 
 /**
- * Finds docs where its indexed shape is {@link SpatialPredicate#IsWithin
+ * Finds docs where its indexed shape is {@link SpatialOperation#IsWithin
  * WITHIN} the query shape.  It works by looking at cells outside of the query
  * shape to ensure documents there are excluded. By default, it will
  * examine all cells, and it's fairly slow.  If you know that the indexed shapes

@@ -17,7 +17,7 @@ package org.apache.lucene.spatial.util;
  * limitations under the License.
  */
 
-import com.spatial4j.core.SpatialPredicate;
+import org.apache.lucene.spatial.query.SpatialOperation;
 import com.spatial4j.core.shape.Shape;
 
 import org.apache.lucene.index.LeafReaderContext;
@@ -26,19 +26,20 @@ import org.apache.lucene.queries.function.ValueSource;
 import org.apache.lucene.queries.function.docvalues.BoolDocValues;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.spatial.query.SpatialOperation;
 
 import java.io.IOException;
 import java.util.Map;
 
 /**
  * A boolean ValueSource that compares a shape from a provided ValueSource with a given Shape and sees
- * if it matches a given {@link SpatialPredicate} (the predicate).
+ * if it matches a given {@link SpatialOperation} (the predicate).
  *
  * @lucene.experimental
  */
 public class ShapePredicateValueSource extends ValueSource {
   private final ValueSource shapeValuesource;//the left hand side
-  private final SpatialPredicate op;
+  private final SpatialOperation op;
   private final Shape queryShape;//the right hand side (constant)
 
   /**
@@ -48,7 +49,7 @@ public class ShapePredicateValueSource extends ValueSource {
    * @param op the predicate
    * @param queryShape The shape on the right-hand (query) side.
    */
-  public ShapePredicateValueSource(ValueSource shapeValuesource, SpatialPredicate op, Shape queryShape) {
+  public ShapePredicateValueSource(ValueSource shapeValuesource, SpatialOperation op, Shape queryShape) {
     this.shapeValuesource = shapeValuesource;
     this.op = op;
     this.queryShape = queryShape;

@@ -19,7 +19,7 @@ package org.apache.lucene.spatial;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-import com.spatial4j.core.SpatialPredicate;
+import org.apache.lucene.spatial.query.SpatialOperation;
 import com.spatial4j.core.context.SpatialContext;
 import com.spatial4j.core.distance.DistanceUtils;
 import com.spatial4j.core.shape.Point;
@@ -160,7 +160,7 @@ public class PortedSolr3Test extends StrategyTestCase {
   }
 
   private void _checkHits(boolean bbox, Point pt, double distKM, int assertNumFound, int... assertIds) {
-    SpatialPredicate op = SpatialPredicate.Intersects;
+    SpatialOperation op = SpatialOperation.Intersects;
     double distDEG = DistanceUtils.dist2Degrees(distKM, DistanceUtils.EARTH_MEAN_RADIUS_KM);
     Shape shape = ctx.makeCircle(pt, distDEG);
     if (bbox)

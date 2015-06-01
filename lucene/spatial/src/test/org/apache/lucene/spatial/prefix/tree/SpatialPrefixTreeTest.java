@@ -17,7 +17,7 @@ package org.apache.lucene.spatial.prefix.tree;
  * limitations under the License.
  */
 
-import com.spatial4j.core.SpatialPredicate;
+import org.apache.lucene.spatial.query.SpatialOperation;
 import com.spatial4j.core.context.SpatialContext;
 import com.spatial4j.core.shape.Point;
 import com.spatial4j.core.shape.Rectangle;
@@ -100,7 +100,7 @@ public class SpatialPrefixTreeTest extends SpatialTestCase {
     Point upperleft = ctx.makePoint(-122.88, 48.54);
     Point lowerright = ctx.makePoint(-122.82, 48.62);
 
-    Query query = strategy.makeQuery(new SpatialArgs(SpatialPredicate.Intersects, ctx.makeRectangle(upperleft, lowerright)));
+    Query query = strategy.makeQuery(new SpatialArgs(SpatialOperation.Intersects, ctx.makeRectangle(upperleft, lowerright)));
 
     commit();
 

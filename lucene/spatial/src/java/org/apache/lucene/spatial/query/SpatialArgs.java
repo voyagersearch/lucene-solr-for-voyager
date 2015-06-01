@@ -17,14 +17,13 @@ package org.apache.lucene.spatial.query;
  * limitations under the License.
  */
 
-import com.spatial4j.core.SpatialPredicate;
 import com.spatial4j.core.context.SpatialContext;
 import com.spatial4j.core.shape.Point;
 import com.spatial4j.core.shape.Rectangle;
 import com.spatial4j.core.shape.Shape;
 
 /**
- * Principally holds the query {@link Shape} and the {@link SpatialPredicate}.
+ * Principally holds the query {@link Shape} and the {@link SpatialOperation}.
  * It's used as an argument to some methods on {@link org.apache.lucene.spatial.SpatialStrategy}.
  *
  * @lucene.experimental
@@ -33,12 +32,12 @@ public class SpatialArgs {
 
   public static final double DEFAULT_DISTERRPCT = 0.025d;
 
-  private SpatialPredicate operation;
+  private SpatialOperation operation;
   private Shape shape;
   private Double distErrPct;
   private Double distErr;
 
-  public SpatialArgs(SpatialPredicate operation, Shape shape) {
+  public SpatialArgs(SpatialOperation operation, Shape shape) {
     if (operation == null || shape == null)
       throw new NullPointerException("operation and shape are required");
     this.operation = operation;
@@ -101,11 +100,11 @@ public class SpatialArgs {
   // Getters & Setters
   //------------------------------------------------
 
-  public SpatialPredicate getOperation() {
+  public SpatialOperation getOperation() {
     return operation;
   }
 
-  public void setOperation(SpatialPredicate operation) {
+  public void setOperation(SpatialOperation operation) {
     this.operation = operation;
   }
 

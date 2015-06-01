@@ -32,7 +32,7 @@ import java.util.concurrent.ExecutionException;
 import com.google.common.base.Throwables;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
-import com.spatial4j.core.SpatialPredicate;
+import org.apache.lucene.spatial.query.SpatialOperation;
 import com.spatial4j.core.context.SpatialContext;
 import com.spatial4j.core.context.SpatialContextFactory;
 import com.spatial4j.core.distance.DistanceUtils;
@@ -269,7 +269,7 @@ public abstract class AbstractSpatialFieldType<T extends SpatialStrategy> extend
     if (options.bbox)
       shape = shape.getBoundingBox();
 
-    SpatialArgs spatialArgs = new SpatialArgs(SpatialPredicate.Intersects, shape);
+    SpatialArgs spatialArgs = new SpatialArgs(SpatialOperation.Intersects, shape);
     return getQueryFromSpatialArgs(parser, options.field, spatialArgs);
   }
 
@@ -281,7 +281,7 @@ public abstract class AbstractSpatialFieldType<T extends SpatialStrategy> extend
     Point p2 = SpatialUtils.parsePointSolrException(part2, ctx);
 
     Rectangle bbox = ctx.makeRectangle(p1, p2);
-    SpatialArgs spatialArgs = new SpatialArgs(SpatialPredicate.Intersects, bbox);
+    SpatialArgs spatialArgs = new SpatialArgs(SpatialOperation.Intersects, bbox);
     return getQueryFromSpatialArgs(parser, field, spatialArgs);//won't score by default
   }
 

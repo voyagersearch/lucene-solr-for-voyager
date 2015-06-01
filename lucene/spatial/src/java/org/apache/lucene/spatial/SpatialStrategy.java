@@ -17,9 +17,8 @@ package org.apache.lucene.spatial;
  * limitations under the License.
  */
 
-import com.spatial4j.core.SpatialPredicate;
-import com.spatial4j.core.context.SpatialContext;
-import com.spatial4j.core.exception.UnsupportedSpatialPredicate;
+import org.apache.lucene.spatial.query.SpatialOperation;
+import com.spatial4j.core.context.SpatialContext;import org.apache.lucene.spatial.query.UnsupportedSpatialOperation;
 import com.spatial4j.core.shape.Point;
 import com.spatial4j.core.shape.Rectangle;
 import com.spatial4j.core.shape.Shape;
@@ -120,21 +119,21 @@ public abstract class SpatialStrategy {
   public abstract ValueSource makeDistanceValueSource(Point queryPoint, double multiplier);
 
   /**
-   * Make a Query based principally on {@link SpatialPredicate}
+   * Make a Query based principally on {@link SpatialOperation}
    * and {@link Shape} from the supplied {@code args}.
    * The default implementation is
    * <pre>return new ConstantScoreQuery(makeFilter(args));</pre>
    *
    * @throws UnsupportedOperationException If the strategy does not support the shape in {@code args}
-   * @throws UnsupportedSpatialPredicate If the strategy does not support the {@link
-   * SpatialPredicate} in {@code args}.
+   * @throws UnsupportedSpatialOperation If the strategy does not support the {@link
+   * SpatialOperation} in {@code args}.
    */
   public Query makeQuery(SpatialArgs args) {
     return new ConstantScoreQuery(makeFilter(args));
   }
 
   /**
-   * Make a Filter based principally on {@link SpatialPredicate}
+   * Make a Filter based principally on {@link SpatialOperation}
    * and {@link Shape} from the supplied {@code args}.
    * <p>
    * If a subclasses implements
@@ -143,8 +142,8 @@ public abstract class SpatialStrategy {
    * <pre>return new QueryWrapperFilter(makeQuery(args).getQuery());</pre>
    *
    * @throws UnsupportedOperationException If the strategy does not support the shape in {@code args}
-   * @throws UnsupportedSpatialPredicate If the strategy does not support the {@link
-   * SpatialPredicate} in {@code args}.
+   * @throws UnsupportedSpatialOperation If the strategy does not support the {@link
+   * SpatialOperation} in {@code args}.
    */
   public abstract Filter makeFilter(SpatialArgs args);
 

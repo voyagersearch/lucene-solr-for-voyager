@@ -23,7 +23,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Map;
 
-import com.spatial4j.core.SpatialPredicate;
+import org.apache.lucene.spatial.query.SpatialOperation;
 import com.spatial4j.core.shape.Shape;
 
 import org.apache.lucene.index.IndexableField;
@@ -47,7 +47,7 @@ import org.apache.solr.search.SyntaxError;
  */
 public class DateRangeField extends AbstractSpatialPrefixTreeFieldType<NumberRangePrefixTreeStrategy> {
 
-  private static final String OP_PARAM = "op";//local-param to resolve SpatialPredicate
+  private static final String OP_PARAM = "op";//local-param to resolve SpatialOperation
 
   private static final DateRangePrefixTree tree = DateRangePrefixTree.INSTANCE;
 
@@ -140,11 +140,11 @@ public class DateRangeField extends AbstractSpatialPrefixTreeFieldType<NumberRan
     //We avoid SpatialArgsParser entirely because it isn't very Solr-friendly
     final Shape shape = parseShape(externalVal);
     final SolrParams localParams = parser.getLocalParams();
-    SpatialPredicate op = SpatialPredicate.Intersects;
+    SpatialOperation op = SpatialOperation.Intersects;
     if (localParams != null) {
       String opStr = localParams.get(OP_PARAM);
       if (opStr != null)
-        op = SpatialPredicate.get(opStr);
+        op = SpatialOperation.get(opStr);
     }
     return new SpatialArgs(op, shape);
   }
@@ -180,7 +180,7 @@ public class DateRangeField extends AbstractSpatialPrefixTreeFieldType<NumberRan
       }
     }
     Shape shape = tree.toRangeShape(tree.toShape(startCal), tree.toShape(endCal));
-    SpatialArgs spatialArgs = new SpatialArgs(SpatialPredicate.Intersects, shape);
+    SpatialArgs spatialArgs = new SpatialArgs(SpatialOperation.Intersects, shape);
     return getQueryFromSpatialArgs(parser, field, spatialArgs);
   }
 

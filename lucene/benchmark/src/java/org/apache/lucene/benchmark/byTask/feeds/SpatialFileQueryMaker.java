@@ -17,7 +17,7 @@ package org.apache.lucene.benchmark.byTask.feeds;
  * limitations under the License.
  */
 
-import com.spatial4j.core.SpatialPredicate;
+import org.apache.lucene.spatial.query.SpatialOperation;
 import com.spatial4j.core.shape.Shape;
 
 import org.apache.lucene.benchmark.byTask.utils.Config;
@@ -30,6 +30,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryWrapperFilter;
 import org.apache.lucene.spatial.SpatialStrategy;
 import org.apache.lucene.spatial.query.SpatialArgs;
+import org.apache.lucene.spatial.query.SpatialOperation;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -47,7 +48,7 @@ import java.util.Properties;
 public class SpatialFileQueryMaker extends AbstractQueryMaker {
   protected SpatialStrategy strategy;
   protected double distErrPct;//NaN if not set
-  protected SpatialPredicate operation;
+  protected SpatialOperation operation;
   protected boolean score;
 
   protected SpatialDocMaker.ShapeConverter shapeConverter;
@@ -58,7 +59,7 @@ public class SpatialFileQueryMaker extends AbstractQueryMaker {
     shapeConverter = SpatialDocMaker.makeShapeConverter(strategy, config, "query.spatial.");
 
     distErrPct = config.get("query.spatial.distErrPct", Double.NaN);
-    operation = SpatialPredicate.get(config.get("query.spatial.predicate", "Intersects"));
+    operation = SpatialOperation.get(config.get("query.spatial.predicate", "Intersects"));
     score = config.get("query.spatial.score", false);
 
     super.setConfig(config);//call last, will call prepareQueries()

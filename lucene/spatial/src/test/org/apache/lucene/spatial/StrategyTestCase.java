@@ -30,7 +30,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.logging.Logger;
 
-import com.spatial4j.core.SpatialPredicate;
+import org.apache.lucene.spatial.query.SpatialOperation;
 import com.spatial4j.core.context.SpatialContext;
 import com.spatial4j.core.shape.Shape;
 
@@ -235,12 +235,12 @@ public abstract class StrategyTestCase extends SpatialTestCase {
     CheckHits.checkExplanations(q, "", indexSearcher);
   }
 
-  protected void testOperation(Shape indexedShape, SpatialPredicate operation,
+  protected void testOperation(Shape indexedShape, SpatialOperation operation,
                                Shape queryShape, boolean match) throws IOException {
     assertTrue("Faulty test",
         operation.evaluate(indexedShape, queryShape) == match ||
             indexedShape.equals(queryShape) &&
-              (operation == SpatialPredicate.Contains || operation == SpatialPredicate.IsWithin));
+              (operation == SpatialOperation.Contains || operation == SpatialOperation.IsWithin));
     adoc("0", indexedShape);
     commit();
     Query query = strategy.makeQuery(new SpatialArgs(operation, queryShape));

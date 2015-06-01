@@ -1,7 +1,5 @@
 package org.apache.lucene.spatial.query;
 
-import com.spatial4j.core.exception.UnsupportedSpatialPredicate;
-
 /*
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
@@ -20,12 +18,12 @@ import com.spatial4j.core.exception.UnsupportedSpatialPredicate;
  */
 
 /**
- * Use {@link UnsupportedSpatialPredicate}
+ * Exception thrown when the {@link org.apache.lucene.spatial.SpatialStrategy} cannot implement the requested operation.
+ * @lucene.experimental
  */
-@Deprecated
-public class UnsupportedSpatialOperation extends UnsupportedSpatialPredicate {
+public class UnsupportedSpatialOperation extends UnsupportedOperationException {
 
   public UnsupportedSpatialOperation(SpatialOperation op) {
-    super(op);
+    super(op.getName());
   }
 }

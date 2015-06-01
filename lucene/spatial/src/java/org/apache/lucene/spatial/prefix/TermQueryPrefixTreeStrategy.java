@@ -20,8 +20,7 @@ package org.apache.lucene.spatial.prefix;
 import java.util.ArrayList;
 import java.util.List;
 
-import com.spatial4j.core.SpatialPredicate;
-import com.spatial4j.core.exception.UnsupportedSpatialPredicate;
+import org.apache.lucene.spatial.query.SpatialOperation;import org.apache.lucene.spatial.query.UnsupportedSpatialOperation;
 import com.spatial4j.core.shape.Point;
 import com.spatial4j.core.shape.Shape;
 
@@ -71,9 +70,9 @@ public class TermQueryPrefixTreeStrategy extends PrefixTreeStrategy {
 
   @Override
   public Filter makeFilter(SpatialArgs args) {
-    final SpatialPredicate op = args.getOperation();
-    if (op != SpatialPredicate.Intersects)
-      throw new UnsupportedSpatialPredicate(op);
+    final SpatialOperation op = args.getOperation();
+    if (op != SpatialOperation.Intersects)
+      throw new UnsupportedSpatialOperation(op);
 
     Shape shape = args.getShape();
     int detailLevel = grid.getLevelForDistance(args.resolveDistErr(ctx, distErrPct));

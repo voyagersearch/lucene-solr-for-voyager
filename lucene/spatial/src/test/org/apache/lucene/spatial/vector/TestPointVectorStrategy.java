@@ -17,7 +17,7 @@ package org.apache.lucene.spatial.vector;
  * limitations under the License.
  */
 
-import com.spatial4j.core.SpatialPredicate;
+import org.apache.lucene.spatial.query.SpatialOperation;
 import com.spatial4j.core.context.SpatialContext;
 import com.spatial4j.core.shape.Circle;
 import com.spatial4j.core.shape.Point;
@@ -44,7 +44,7 @@ public class TestPointVectorStrategy extends StrategyTestCase {
   @Test
   public void testCircleShapeSupport() {
     Circle circle = ctx.makeCircle(ctx.makePoint(0, 0), 10);
-    SpatialArgs args = new SpatialArgs(SpatialPredicate.Intersects, circle);
+    SpatialArgs args = new SpatialArgs(SpatialOperation.Intersects, circle);
     Query query = this.strategy.makeQuery(args);
 
     assertNotNull(query);
@@ -53,7 +53,7 @@ public class TestPointVectorStrategy extends StrategyTestCase {
   @Test(expected = UnsupportedOperationException.class)
   public void testInvalidQueryShape() {
     Point point = ctx.makePoint(0, 0);
-    SpatialArgs args = new SpatialArgs(SpatialPredicate.Intersects, point);
+    SpatialArgs args = new SpatialArgs(SpatialOperation.Intersects, point);
     this.strategy.makeQuery(args);
   }
 

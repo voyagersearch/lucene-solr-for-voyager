@@ -17,9 +17,8 @@ package org.apache.lucene.spatial.vector;
  * limitations under the License.
  */
 
-import com.spatial4j.core.SpatialPredicate;
-import com.spatial4j.core.context.SpatialContext;
-import com.spatial4j.core.exception.UnsupportedSpatialPredicate;
+import org.apache.lucene.spatial.query.SpatialOperation;
+import com.spatial4j.core.context.SpatialContext;import org.apache.lucene.spatial.query.UnsupportedSpatialOperation;
 import com.spatial4j.core.shape.Circle;
 import com.spatial4j.core.shape.Point;
 import com.spatial4j.core.shape.Rectangle;
@@ -41,6 +40,8 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryWrapperFilter;
 import org.apache.lucene.spatial.SpatialStrategy;
 import org.apache.lucene.spatial.query.SpatialArgs;
+import org.apache.lucene.spatial.query.SpatialOperation;
+import org.apache.lucene.spatial.query.UnsupportedSpatialOperation;
 import org.apache.lucene.spatial.util.CachingDoubleValueSource;
 import org.apache.lucene.spatial.util.ValueSourceFilter;
 
@@ -54,8 +55,8 @@ import org.apache.lucene.spatial.util.ValueSourceFilter;
  * <ul>
  * <li>Only indexes points; just one per field value.</li>
  * <li>Can query by a rectangle or circle.</li>
- * <li>{@link SpatialPredicate#Intersects} and {@link
- * SpatialPredicate#IsWithin} is supported.</li>
+ * <li>{@link SpatialOperation#Intersects} and {@link
+ * SpatialOperation#IsWithin} is supported.</li>
  * <li>Uses the FieldCache for
  * {@link #makeDistanceValueSource(com.spatial4j.core.shape.Point)} and for
  * searching with a Circle.</li>
@@ -141,10 +142,10 @@ public class PointVectorStrategy extends SpatialStrategy {
 
   @Override
   public ConstantScoreQuery makeQuery(SpatialArgs args) {
-    if(! SpatialPredicate.is( args.getOperation(),
-        SpatialPredicate.Intersects,
-        SpatialPredicate.IsWithin ))
-      throw new UnsupportedSpatialPredicate(args.getOperation());
+    if(! SpatialOperation.is( args.getOperation(),
+        SpatialOperation.Intersects,
+        SpatialOperation.IsWithin ))
+      throw new UnsupportedSpatialOperation(args.getOperation());
     Shape shape = args.getShape();
     if (shape instanceof Rectangle) {
       Rectangle bbox = (Rectangle) shape;
@@ -182,16 +183,16 @@ public class PointVectorStrategy extends SpatialStrategy {
     ValueSource valueSource = null;
 
     Query spatial = null;
-    SpatialPredicate op = args.getOperation();
+    SpatialOperation op = args.getOperation();
 
-    if( SpatialPredicate.is( op,
-        SpatialPredicate.BBoxWithin,
-        SpatialPredicate.BBoxIntersects ) ) {
+    if( SpatialOperation.is( op,
+        SpatialOperation.BBoxWithin,
+        SpatialOperation.BBoxIntersects ) ) {
         spatial = makeWithin(bbox);
     }
-    else if( SpatialPredicate.is( op,
-      SpatialPredicate.Intersects,
-      SpatialPredicate.IsWithin ) ) {
+    else if( SpatialOperation.is( op,
+        SpatialOperation.Intersects,
+        SpatialOperation.IsWithin ) ) {
       spatial = makeWithin(bbox);
       if( args.getShape() instanceof Circle) {
         Circle circle = (Circle)args.getShape();
@@ -205,12 +206,12 @@ public class PointVectorStrategy extends SpatialStrategy {
         spatial = new FilteredQuery( new MatchAllDocsQuery(), vsf );
       }
     }
-    else if( op == SpatialPredicate.IsDisjointTo ) {
+    else if( op == SpatialOperation.IsDisjointTo ) {
       spatial =  makeDisjoint(bbox);
     }
 
     if( spatial == null ) {
-      throw new UnsupportedSpatialPredicate(args.getOperation());
+      throw new UnsupportedSpatialOperation(args.getOperation());
     }
 
     if( valueSource != null ) {

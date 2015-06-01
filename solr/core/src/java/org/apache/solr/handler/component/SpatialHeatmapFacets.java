@@ -34,7 +34,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import com.spatial4j.core.SpatialPredicate;
+import org.apache.lucene.spatial.query.SpatialOperation;
 import com.spatial4j.core.context.SpatialContext;
 import com.spatial4j.core.shape.Shape;
 
@@ -103,7 +103,7 @@ public class SpatialHeatmapFacets {
     } else {
       //SpatialArgs has utility methods to resolve a 'distErr' from optionally set distErr & distErrPct. Arguably that
       // should be refactored to feel less weird than using it like this.
-      SpatialArgs spatialArgs = new SpatialArgs(SpatialPredicate.Intersects/*ignored*/,
+      SpatialArgs spatialArgs = new SpatialArgs(SpatialOperation.Intersects/*ignored*/,
           boundsShape == null ? ctx.getWorldBounds() : boundsShape);
       final Double distErrObj = params.getFieldDouble(fieldKey, FacetParams.FACET_HEATMAP_DIST_ERR);
       if (distErrObj != null) {

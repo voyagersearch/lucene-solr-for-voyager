@@ -21,7 +21,7 @@ import java.io.IOException;
 import java.util.Calendar;
 
 import com.carrotsearch.randomizedtesting.annotations.Repeat;
-import com.spatial4j.core.SpatialPredicate;
+import org.apache.lucene.spatial.query.SpatialOperation;
 import com.spatial4j.core.shape.Shape;
 
 import org.apache.lucene.spatial.prefix.tree.DateRangePrefixTree;
@@ -64,19 +64,19 @@ public class DateNRStrategyTest extends RandomSpatialOpStrategyTestCase {
   @Test
   @Repeat(iterations = ITERATIONS)
   public void testIntersects() throws IOException {
-    testOperationRandomShapes(SpatialPredicate.Intersects);
+    testOperationRandomShapes(SpatialOperation.Intersects);
   }
 
   @Test
   @Repeat(iterations = ITERATIONS)
   public void testWithin() throws IOException {
-    testOperationRandomShapes(SpatialPredicate.IsWithin);
+    testOperationRandomShapes(SpatialOperation.IsWithin);
   }
 
   @Test
   @Repeat(iterations = ITERATIONS)
   public void testContains() throws IOException {
-    testOperationRandomShapes(SpatialPredicate.Contains);
+    testOperationRandomShapes(SpatialOperation.Contains);
   }
 
   @Test
@@ -84,7 +84,7 @@ public class DateNRStrategyTest extends RandomSpatialOpStrategyTestCase {
     final Calendar cal = tree.newCal();
     testOperation(
         tree.toShape(cal),
-        SpatialPredicate.IsWithin,
+        SpatialOperation.IsWithin,
         tree.toShape(cal), true);//is within itself
   }
 
@@ -92,7 +92,7 @@ public class DateNRStrategyTest extends RandomSpatialOpStrategyTestCase {
   public void testWorld() throws IOException {
     testOperation(
         tree.toShape(tree.newCal()),//world matches everything
-        SpatialPredicate.Contains,
+        SpatialOperation.Contains,
         tree.toShape(randomCalendar()), true);
   }
 
@@ -101,7 +101,7 @@ public class DateNRStrategyTest extends RandomSpatialOpStrategyTestCase {
     //bug due to fast path initIter() optimization
     testOperation(
         tree.parseShape("[2014-03-27T23 TO 2014-04-01T01]"),
-        SpatialPredicate.Intersects,
+        SpatialOperation.Intersects,
         tree.parseShape("[2014-04 TO 2014-04-01T02]"), true);
   }
 

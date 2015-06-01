@@ -21,11 +21,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import com.spatial4j.core.SpatialPredicate;
 import com.spatial4j.core.shape.Point;
 import com.spatial4j.core.shape.Shape;
-import com.spatial4j.core.exception.UnsupportedSpatialPredicate;
-
 import org.apache.lucene.document.Field;
 import org.apache.lucene.queries.function.ValueSource;
 import org.apache.lucene.search.Filter;
@@ -35,6 +32,8 @@ import org.apache.lucene.spatial.SpatialStrategy;
 import org.apache.lucene.spatial.prefix.RecursivePrefixTreeStrategy;
 import org.apache.lucene.spatial.prefix.tree.SpatialPrefixTree;
 import org.apache.lucene.spatial.query.SpatialArgs;
+import org.apache.lucene.spatial.query.SpatialOperation;
+import org.apache.lucene.spatial.query.UnsupportedSpatialOperation;
 import org.apache.lucene.spatial.serialized.SerializedDVStrategy;
 import org.apache.lucene.spatial.util.ShapePredicateValueSource;
 
@@ -86,24 +85,24 @@ public class CompositeSpatialStrategy extends SpatialStrategy {
 
   @Override
   public Query makeQuery(SpatialArgs args) {
-    final SpatialPredicate pred = args.getOperation();
+    final SpatialOperation pred = args.getOperation();
 
-    if (pred == SpatialPredicate.BBoxIntersects || pred == SpatialPredicate.BBoxWithin) {
-      throw new UnsupportedSpatialPredicate(pred);
+    if (pred == SpatialOperation.BBoxIntersects || pred == SpatialOperation.BBoxWithin) {
+      throw new UnsupportedSpatialOperation(pred);
     }
 
-    if (pred == SpatialPredicate.IsDisjointTo) {
-//      final Query intersectQuery = makeQuery(new SpatialArgs(SpatialPredicate.Intersects, args.getShape()));
+    if (pred == SpatialOperation.IsDisjointTo) {
+//      final Query intersectQuery = makeQuery(new SpatialArgs(SpatialOperation.Intersects, args.getShape()));
 //      DocValues.getDocsWithField(reader, geometryStrategy.getFieldName());
       //TODO resurrect Disjoint spatial query utility accepting a field name known to have DocValues.
       // update class docs when it's added.
-      throw new UnsupportedSpatialPredicate(pred);
+      throw new UnsupportedSpatialOperation(pred);
     }
 
     final ShapePredicateValueSource predicateValueSource =
         new ShapePredicateValueSource(geometryStrategy.makeShapeValueSource(), pred, args.getShape());
     //System.out.println("PredOpt: " + optimizePredicates);
-    if (pred == SpatialPredicate.Intersects && optimizePredicates) {
+    if (pred == SpatialOperation.Intersects && optimizePredicates) {
       // We have a smart Intersects impl
 
       final SpatialPrefixTree grid = indexStrategy.getGrid();
@@ -114,12 +113,12 @@ public class CompositeSpatialStrategy extends SpatialStrategy {
       //The general path; all index matches get verified
 
       SpatialArgs indexArgs;
-      if (pred == SpatialPredicate.Contains) {
+      if (pred == SpatialOperation.Contains) {
         // note: we could map IsWithin as well but it's pretty darned slow since it touches all world grids
         indexArgs = args;
       } else {
         //TODO add args.clone method with new predicate? Or simply make non-final?
-        indexArgs = new SpatialArgs(SpatialPredicate.Intersects, args.getShape());
+        indexArgs = new SpatialArgs(SpatialOperation.Intersects, args.getShape());
         indexArgs.setDistErr(args.getDistErr());
         indexArgs.setDistErrPct(args.getDistErrPct());
       }

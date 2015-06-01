@@ -167,6 +167,29 @@ public class MiniSolrCloudCluster {
       throw startupError;
     }
 
+    try (SolrZkClient zkClient = new SolrZkClient(zkServer.getZkHost(),
+        AbstractZkTestCase.TIMEOUT, 45000, null)) {
+      int numliveNodes = 0;
+      int retries = 60;
+      String liveNodesPath = "/solr/live_nodes";
+      // Wait up to 60 seconds for number of live_nodes to match up number of servers
+      do {
+        if (zkClient.exists(liveNodesPath, true)) {
+          numliveNodes = zkClient.getChildren(liveNodesPath, null, true).size();
+          if (numliveNodes == numServers) {
+            break;
+          }
+        }
+        retries--;
+        if (retries == 0) {
+          throw new IllegalStateException("Solr servers failed to register with ZK."
+              + " Current count: " + numliveNodes + "; Expected count: " + numServers);
+        }
+
+        Thread.sleep(1000);
+      } while (numliveNodes != numServers);
+    }
+
     solrClient = buildSolrClient();
   }
 
@@ -284,7 +307,7 @@ public class MiniSolrCloudCluster {
   
   public NamedList<Object> createCollection(String name, int numShards, int replicationFactor, 
       String configName, Map<String, String> collectionProperties) throws SolrServerException, IOException {
-    ModifiableSolrParams params = new ModifiableSolrParams();
+    final ModifiableSolrParams params = new ModifiableSolrParams();
     params.set(CoreAdminParams.ACTION, CollectionAction.CREATE.name());
     params.set(CoreAdminParams.NAME, name);
     params.set("numShards", numShards);
@@ -296,7 +319,20 @@ public class MiniSolrCloudCluster {
       }
     }
     
-    QueryRequest request = new QueryRequest(params);
+    return makeCollectionsRequest(params);
+  }
+
+  public NamedList<Object> deleteCollection(String name) throws SolrServerException, IOException {
+    final ModifiableSolrParams params = new ModifiableSolrParams();
+    params.set(CoreAdminParams.ACTION, CollectionAction.DELETE.name());
+    params.set(CoreAdminParams.NAME, name);
+
+    return makeCollectionsRequest(params);
+  }
+
+  private NamedList<Object> makeCollectionsRequest(final ModifiableSolrParams params) throws SolrServerException, IOException {
+    
+    final QueryRequest request = new QueryRequest(params);
     request.setPath("/admin/collections");
     
     return solrClient.request(request);

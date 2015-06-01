@@ -40,6 +40,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -80,7 +82,7 @@ import org.apache.solr.core.CoreContainer;
 import org.apache.solr.core.CoreDescriptor;
 import org.apache.solr.core.SolrCore;
 import org.apache.solr.handler.component.ShardHandler;
-import org.apache.solr.logging.MDCUtils;
+import org.apache.solr.logging.MDCLoggingContext;
 import org.apache.solr.update.UpdateLog;
 import org.apache.solr.update.UpdateShardHandler;
 import org.apache.zookeeper.CreateMode;
@@ -94,7 +96,8 @@ import org.apache.zookeeper.Watcher;
 import org.apache.zookeeper.data.Stat;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.slf4j.MDC;
+
+import com.google.common.base.Strings;
 
 /**
  * Handle ZooKeeper interactions.
@@ -108,6 +111,7 @@ import org.slf4j.MDC;
 public final class ZkController {
 
   private static final Logger log = LoggerFactory.getLogger(ZkController.class);
+  static final int WAIT_DOWN_STATES_TIMEOUT_SECONDS = 60;
 
   private final boolean SKIP_AUTO_RECOVERY = Boolean.getBoolean("solrcloud.skip.autorecovery");
   
@@ -204,6 +208,25 @@ public final class ZkController {
   // keeps track of a list of objects that need to know a new ZooKeeper session was created after expiration occurred
   private List<OnReconnect> reconnectListeners = new ArrayList<OnReconnect>();
 
+  private class RegisterCoreAsync implements Callable {
+
+    CoreDescriptor descriptor;
+    boolean recoverReloadedCores;
+    boolean afterExpiration;
+
+    RegisterCoreAsync(CoreDescriptor descriptor, boolean recoverReloadedCores, boolean afterExpiration) {
+      this.descriptor = descriptor;
+      this.recoverReloadedCores = recoverReloadedCores;
+      this.afterExpiration = afterExpiration;
+    }
+
+    public Object call() throws Exception {
+      log.info("Registering core {} afterExpiration? {}", descriptor.getName(), afterExpiration);
+      register(descriptor.getName(), descriptor, recoverReloadedCores, afterExpiration);
+      return descriptor;
+    }
+  }
+
   public ZkController(final CoreContainer cc, String zkServerAddress, int zkClientConnectTimeout, CloudConfig cloudConfig, final CurrentCoreDescriptorProvider registerOnReconnect)
       throws InterruptedException, TimeoutException, IOException
   {
@@ -225,9 +248,7 @@ public final class ZkController {
     this.localHostPort = cloudConfig.getSolrHostPort();
     this.hostName = normalizeHostName(cloudConfig.getHost());
     this.nodeName = generateNodeName(this.hostName, Integer.toString(this.localHostPort), localHostContext);
-
-    MDC.put(NODE_NAME_PROP, nodeName);
-
+    MDCLoggingContext.setNode(nodeName);
     this.leaderVoteWait = cloudConfig.getLeaderVoteWait();
     this.leaderConflictResolveWait = cloudConfig.getLeaderConflictResolveWait();
 
@@ -291,10 +312,10 @@ public final class ZkController {
               // we have to register as live first to pick up docs in the buffer
               createEphemeralLiveNode();
 
-              List<CoreDescriptor> descriptors = registerOnReconnect
-                  .getCurrentDescriptors();
+              List<CoreDescriptor> descriptors = registerOnReconnect.getCurrentDescriptors();
               // re register all descriptors
               if (descriptors != null) {
+                ExecutorService executorService = (cc != null) ? cc.getCoreZkRegisterExecutorService() : null;
                 for (CoreDescriptor descriptor : descriptors) {
                   // TODO: we need to think carefully about what happens when it
                   // was
@@ -305,7 +326,11 @@ public final class ZkController {
                     // unload solrcores that have been 'failed over'
                     throwErrorIfReplicaReplaced(descriptor);
 
-                    register(descriptor.getName(), descriptor, true, true);
+                    if (executorService != null) {
+                      executorService.submit(new RegisterCoreAsync(descriptor, true, true));
+                    } else {
+                      register(descriptor.getName(), descriptor, true, true);
+                    }
                   } catch (Exception e) {
                     SolrException.log(log, "Error registering SolrCore", e);
                   }
@@ -662,7 +687,7 @@ public final class ZkController {
     
     ClusterState clusterState = zkStateReader.getClusterState();
     Set<String> collections = clusterState.getCollections();
-    List<String> updatedNodes = new ArrayList<>();
+    Set<String> updatedCoreNodeNames = new HashSet<>();
     for (String collectionName : collections) {
       DocCollection collection = clusterState.getCollection(collectionName);
       Collection<Slice> slices = collection.getSlices();
@@ -683,7 +708,7 @@ public final class ZkController {
                 replica.getStr(ZkStateReader.SHARD_ID_PROP),
                 ZkStateReader.COLLECTION_PROP, collectionName,
                 ZkStateReader.CORE_NODE_NAME_PROP, replica.getName());
-            updatedNodes.add(replica.getStr(ZkStateReader.CORE_NAME_PROP));
+            updatedCoreNodeNames.add(replica.getName());
             overseerJobQueue.offer(ZkStateReader.toJSON(m));
           }
         }
@@ -692,7 +717,7 @@ public final class ZkController {
     
     // now wait till the updates are in our state
     long now = System.nanoTime();
-    long timeout = now + TimeUnit.NANOSECONDS.convert(60, TimeUnit.SECONDS);
+    long timeout = now + TimeUnit.NANOSECONDS.convert(WAIT_DOWN_STATES_TIMEOUT_SECONDS, TimeUnit.SECONDS);
     boolean foundStates = false;
     while (System.nanoTime() < timeout) {
       clusterState = zkStateReader.getClusterState();
@@ -704,14 +729,14 @@ public final class ZkController {
           Collection<Replica> replicas = slice.getReplicas();
           for (Replica replica : replicas) {
             if (replica.getState() == Replica.State.DOWN) {
-              updatedNodes.remove(replica.getStr(ZkStateReader.CORE_NAME_PROP));
+              updatedCoreNodeNames.remove(replica.getName());
               
             }
           }
         }
       }
       
-      if (updatedNodes.size() == 0) {
+      if (updatedCoreNodeNames.size() == 0) {
         foundStates = true;
         Thread.sleep(1000);
         break;
@@ -820,21 +845,22 @@ public final class ZkController {
    * 
    * @return the shardId for the SolrCore
    */
-  public String register(String coreName, final CoreDescriptor desc, boolean recoverReloadedCores, boolean afterExpiration) throws Exception {  
+  public String register(String coreName, final CoreDescriptor desc, boolean recoverReloadedCores, boolean afterExpiration) throws Exception {
+    try (SolrCore core = cc.getCore(desc.getName())) {
+      MDCLoggingContext.setCore(core);
+    }
+    try {
     // pre register has published our down state
     final String baseUrl = getBaseUrl();
     
     final CloudDescriptor cloudDesc = desc.getCloudDescriptor();
     final String collection = cloudDesc.getCollectionName();
 
-    Map previousMDCContext = MDC.getCopyOfContextMap();
-    MDCUtils.setCollection(collection);
-
     final String coreZkNodeName = desc.getCloudDescriptor().getCoreNodeName();
     assert coreZkNodeName != null : "we should have a coreNodeName by now";
     
     String shardId = cloudDesc.getShardId();
-    MDCUtils.setShard(shardId);
+
     Map<String,Object> props = new HashMap<>();
  // we only put a subset of props into the leader node
     props.put(ZkStateReader.BASE_URL_PROP, baseUrl);
@@ -849,7 +875,7 @@ public final class ZkController {
 
     ZkNodeProps leaderProps = new ZkNodeProps(props);
     
-    try {
+ 
       try {
         // If we're a preferred leader, insert ourselves at the head of the queue
         boolean joinAtHead = false;
@@ -914,7 +940,7 @@ public final class ZkController {
       zkStateReader.updateClusterState(true);
       return shardId;
     } finally {
-      MDCUtils.cleanupMDC(previousMDCContext);
+      MDCLoggingContext.clear();
     }
   }
 
@@ -1110,28 +1136,26 @@ public final class ZkController {
         if (core == null || core.isClosed()) {
           return;
         }
+        MDCLoggingContext.setCore(core);
       }
+    } else {
+      MDCLoggingContext.setCoreDescriptor(cd);
     }
-    String collection = cd.getCloudDescriptor().getCollectionName();
-
-    Map previousMDCContext = MDC.getCopyOfContextMap();
-    MDCUtils.setCollection(collection);
-
     try {
-      if (cd != null && cd.getName() != null)
-        MDCUtils.setCore(cd.getName());
-      log.info("publishing core={} state={} collection={}", cd.getName(), state.toString(), collection);
-      //System.out.println(Thread.currentThread().getStackTrace()[3]);
+      String collection = cd.getCloudDescriptor().getCollectionName();
+      
+      log.info("publishing state={}", state.toString());
+      // System.out.println(Thread.currentThread().getStackTrace()[3]);
       Integer numShards = cd.getCloudDescriptor().getNumShards();
-      if (numShards == null) { //XXX sys prop hack
+      if (numShards == null) { // XXX sys prop hack
         log.info("numShards not found on descriptor - reading it from system property");
         numShards = Integer.getInteger(ZkStateReader.NUM_SHARDS_PROP);
       }
-
+      
       assert collection != null && collection.length() > 0;
-
+      
       String shardId = cd.getCloudDescriptor().getShardId();
-      MDCUtils.setShard(shardId);
+      
       String coreNodeName = cd.getCloudDescriptor().getCoreNodeName();
       // If the leader initiated recovery, then verify that this replica has performed
       // recovery as requested before becoming active; don't even look at lirState if going down
@@ -1154,8 +1178,8 @@ public final class ZkController {
           }
         }
       }
-
-      Map<String, Object> props = new HashMap<>();
+      
+      Map<String,Object> props = new HashMap<>();
       props.put(Overseer.QUEUE_OPERATION, "state");
       props.put(ZkStateReader.STATE_PROP, state.toString());
       props.put(ZkStateReader.BASE_URL_PROP, getBaseUrl());
@@ -1170,7 +1194,7 @@ public final class ZkController {
       if (coreNodeName != null) {
         props.put(ZkStateReader.CORE_NODE_NAME_PROP, coreNodeName);
       }
-
+      
       if (ClusterStateUtil.isAutoAddReplicas(getZkStateReader(), collection)) {
         try (SolrCore core = cc.getCore(cd.getName())) {
           if (core != null && core.getDirectoryFactory().isSharedStorage()) {
@@ -1182,15 +1206,15 @@ public final class ZkController {
           }
         }
       }
-
+      
       ZkNodeProps m = new ZkNodeProps(props);
-
+      
       if (updateLastState) {
         cd.getCloudDescriptor().lastPublished = state;
       }
       overseerJobQueue.offer(ZkStateReader.toJSON(m));
     } finally {
-      MDCUtils.cleanupMDC(previousMDCContext);
+      MDCLoggingContext.clear();
     }
   }
   
@@ -1208,14 +1232,13 @@ public final class ZkController {
     return true;
   }
 
-  public void unregister(String coreName, CoreDescriptor cd, String configLocation)
-      throws InterruptedException, KeeperException {
+  public void unregister(String coreName, CoreDescriptor cd) throws InterruptedException, KeeperException {
     final String coreNodeName = cd.getCloudDescriptor().getCoreNodeName();
     final String collection = cd.getCloudDescriptor().getCollectionName();
-    assert collection != null;
     
-    if (collection == null || collection.trim().length() == 0) {
+    if (Strings.isNullOrEmpty(collection)) {
       log.error("No collection was specified.");
+      assert false : "No collection was specified [" + collection + "]";
       return;
     }
     
@@ -1224,38 +1247,29 @@ public final class ZkController {
     if (context != null) {
       context.cancelElection();
     }
-
+    
+    final Collection<SolrCore> cores = cc.getCores();
+    
+    // if there is no SolrCore which is a member of this collection, remove the watch
     CloudDescriptor cloudDescriptor = cd.getCloudDescriptor();
     boolean removeWatch = true;
-    // if there is no SolrCore which is a member of this collection, remove the watch
-    for (SolrCore solrCore : cc.getCores()) {
-      if (((ZkSolrResourceLoader)solrCore.getResourceLoader()).getConfigSetZkPath().equals(configLocation))
-        configLocation = null; //if a core uses this config dir , then set it to null
-
-
-      CloudDescriptor cloudDesc = solrCore.getCoreDescriptor()
-          .getCloudDescriptor();
-      if (cloudDesc != null
-          && cloudDescriptor.getCollectionName().equals(
-              cloudDesc.getCollectionName())) {
+    for (SolrCore solrCore : cores) {
+      final CloudDescriptor cloudDesc = solrCore.getCoreDescriptor().getCloudDescriptor();
+      if (cloudDesc != null && cloudDescriptor.getCollectionName().equals(cloudDesc.getCollectionName())) {
         removeWatch = false;
         break;
       }
     }
-    if (removeWatch) zkStateReader.removeZKWatch(collection);
+    
+    if (removeWatch) {
+      zkStateReader.removeZKWatch(collection);
+    }
     ZkNodeProps m = new ZkNodeProps(Overseer.QUEUE_OPERATION,
         OverseerAction.DELETECORE.toLower(), ZkStateReader.CORE_NAME_PROP, coreName,
         ZkStateReader.NODE_NAME_PROP, getNodeName(),
         ZkStateReader.COLLECTION_PROP, cloudDescriptor.getCollectionName(),
         ZkStateReader.CORE_NODE_NAME_PROP, coreNodeName);
     overseerJobQueue.offer(ZkStateReader.toJSON(m));
-
-    if(configLocation != null) {
-      synchronized (confDirectoryListeners) {
-        log.info("This conf directory is no more watched {}", configLocation);
-        confDirectoryListeners.remove(configLocation);
-      }
-    }
   }
   
   public void createCollection(String collection) throws KeeperException,
@@ -1892,7 +1906,7 @@ public final class ZkController {
     } catch (NoNodeException nne){
       return;
     } catch (Exception e) {
-      log.warn("could not readd the overseer designate ",e);
+      log.warn("could not read the overseer designate ", e);
     }
   }
 
@@ -2255,18 +2269,19 @@ public final class ZkController {
     }
   }
 
-  public void unRegisterConfListener(Runnable listener) {
-    if(listener == null) return;
-    synchronized (confDirectoryListeners){
-      for (Set<Runnable> listeners : confDirectoryListeners.values()) {
-        if(listeners != null) {
-          if(listeners.remove(listener)) {
-            log.info(" a listener was removed because of core close");
-          }
-        }
+  private void unregisterConfListener(String confDir, Runnable listener) {
+    synchronized (confDirectoryListeners) {
+      final Set<Runnable> listeners = confDirectoryListeners.get(confDir);
+      assert listeners != null : confDir + " has no more registered listeners, but a live one attempts to unregister!";
+      if (listeners.remove(listener)) {
+        log.info("removed listener for config directory [{}]", confDir);
+      }
+      if (listeners.isEmpty()) {
+        // no more listeners for this confDir, remove it from the map
+        log.info("No more listeners for config directory [{}]", confDir);
+        confDirectoryListeners.remove(confDir);
       }
     }
-
   }
 
   /**This will give a callback to the listener whenever a child is modified in the
@@ -2274,38 +2289,41 @@ public final class ZkController {
    * item of interest has been modified.  When the last core which was interested in
    * this conf directory is gone the listeners will be removed automatically.
    */
-  public void registerConfListenerForCore(String confDir,SolrCore core, final Runnable listener){
-    if(listener==null) throw new NullPointerException("listener cannot be null");
-    synchronized (confDirectoryListeners){
-      if(confDirectoryListeners.containsKey(confDir)){
-        confDirectoryListeners.get(confDir).add(listener);
-        core.addCloseHook(new CloseHook() {
-          @Override
-          public void preClose(SolrCore core) {
-            unRegisterConfListener(listener);
-          }
-
-          @Override
-          public void postClose(SolrCore core) { }
-        });
-      } else {
-        throw new SolrException(ErrorCode.SERVER_ERROR, "This conf directory is not valid "+ confDir);
-      }
+  public void registerConfListenerForCore(final String confDir, SolrCore core, final Runnable listener) {
+    if (listener == null) {
+      throw new NullPointerException("listener cannot be null");
     }
+    synchronized (confDirectoryListeners) {
+      final Set<Runnable> confDirListeners = getConfDirListeners(confDir);
+      confDirListeners.add(listener);
+      core.addCloseHook(new CloseHook() {
+        @Override
+        public void preClose(SolrCore core) {
+          unregisterConfListener(confDir, listener);
+        }
+        
+        @Override
+        public void postClose(SolrCore core) {
+        }
+      });
+    }
+  }
+
+  // this method is called in a protected confDirListeners block
+  private Set<Runnable> getConfDirListeners(final String confDir) {
+    assert Thread.holdsLock(confDirectoryListeners) : "confDirListeners lock not held by thread";
+    Set<Runnable> confDirListeners = confDirectoryListeners.get(confDir);
+    if (confDirListeners == null) {
+      log.info("watch zkdir {}" , confDir);
+      confDirListeners = new HashSet<>();
+      confDirectoryListeners.put(confDir, confDirListeners);
+      setConfWatcher(confDir, new WatcherImpl(confDir), null);
+    }
+    return confDirListeners;
   }
 
   private final Map<String , Set<Runnable>> confDirectoryListeners =  new HashMap<>();
 
-  void watchZKConfDir(final String zkDir) {
-    log.info("watch zkdir {}" , zkDir);
-    if (!confDirectoryListeners.containsKey(zkDir)) {
-      confDirectoryListeners.put(zkDir,  new HashSet<Runnable>());
-      setConfWatcher(zkDir, new WatcherImpl(zkDir), null);
-
-    }
-
-
-  }
   private class WatcherImpl implements Watcher{
     private final String zkDir ;
     private WatcherImpl(String dir) {
@@ -2334,7 +2352,6 @@ public final class ZkController {
           }
         }
       }
-
   }
   private boolean fireEventListeners(String zkDir) {
     synchronized (confDirectoryListeners) {
@@ -2343,11 +2360,12 @@ public final class ZkController {
         log.info("Watcher on {} is removed ", zkDir);
         return false;
       }
-      Set<Runnable> listeners = confDirectoryListeners.get(zkDir);
+      final Set<Runnable> listeners = confDirectoryListeners.get(zkDir);
       if (listeners != null && !listeners.isEmpty()) {
         final Set<Runnable> listenersCopy = new HashSet<>(listeners);
         new Thread() {
-          //run these in a separate thread because this can be long running
+          // run these in a separate thread because this can be long running
+          @Override
           public void run() {
             for (final Runnable listener : listenersCopy) {
               try {
@@ -2359,7 +2377,6 @@ public final class ZkController {
           }
         }.start();
       }
-
     }
     return true;
   }
@@ -2368,7 +2385,7 @@ public final class ZkController {
     try {
       Stat newStat = zkClient.exists(zkDir, watcher, true);
       if (stat != null && newStat.getVersion() > stat.getVersion()) {
-        //a race condition where a we missed an even fired
+        //a race condition where a we missed an event fired
         //so fire the event listeners
         fireEventListeners(zkDir);
       }
@@ -2386,7 +2403,7 @@ public final class ZkController {
       public void command() {
         synchronized (confDirectoryListeners){
           for (String s : confDirectoryListeners.keySet()) {
-            watchZKConfDir(s);
+            setConfWatcher(s, new WatcherImpl(s), null);
             fireEventListeners(s);
           }
         }

@@ -20,6 +20,7 @@ package org.apache.lucene.search;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Objects;
 import java.util.Set;
 
 import org.apache.lucene.index.PostingsEnum;
@@ -110,6 +111,7 @@ public class PhraseQuery extends Query {
    * 
    */
   public void add(Term term, int position) {
+    Objects.requireNonNull(term, "Term must not be null");
     if (positions.size() > 0) {
       final int previousPosition = positions.get(positions.size()-1);
       if (position < previousPosition) {
@@ -266,6 +268,11 @@ public class PhraseQuery extends Query {
     }
 
     @Override
+    public void extractTerms(Set<Term> queryTerms) {
+      queryTerms.addAll(terms);
+    }
+
+    @Override
     public String toString() { return "weight(" + PhraseQuery.this + ")"; }
 
     @Override
@@ -334,31 +341,22 @@ public class PhraseQuery extends Query {
         if (newDoc == doc) {
           float freq = slop == 0 ? scorer.freq() : ((SloppyPhraseScorer)scorer).sloppyFreq();
           SimScorer docScorer = similarity.simScorer(stats, context);
-          ComplexExplanation result = new ComplexExplanation();
-          result.setDescription("weight("+getQuery()+" in "+doc+") [" + similarity.getClass().getSimpleName() + "], result of:");
-          Explanation scoreExplanation = docScorer.explain(doc, new Explanation(freq, "phraseFreq=" + freq));
-          result.addDetail(scoreExplanation);
-          result.setValue(scoreExplanation.getValue());
-          result.setMatch(true);
-          return result;
+          Explanation freqExplanation = Explanation.match(freq, "phraseFreq=" + freq);
+          Explanation scoreExplanation = docScorer.explain(doc, freqExplanation);
+          return Explanation.match(
+              scoreExplanation.getValue(),
+              "weight("+getQuery()+" in "+doc+") [" + similarity.getClass().getSimpleName() + "], result of:",
+              scoreExplanation);
         }
       }
       
-      return new ComplexExplanation(false, 0.0f, "no matching term");
+      return Explanation.noMatch("no matching term");
     }
   }
 
   @Override
   public Weight createWeight(IndexSearcher searcher, boolean needsScores) throws IOException {
     return new PhraseWeight(searcher, needsScores);
-  }
-
-  /**
-   * @see org.apache.lucene.search.Query#extractTerms(Set)
-   */
-  @Override
-  public void extractTerms(Set<Term> queryTerms) {
-    queryTerms.addAll(terms);
   }
 
   /** Prints a user-readable version of this query. */

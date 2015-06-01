@@ -24,6 +24,8 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hdfs.MiniDFSCluster;
 import org.apache.lucene.store.Lock;
+import org.apache.lucene.store.LockObtainFailedException;
+import org.apache.lucene.util.IOUtils;
 import org.apache.solr.SolrTestCaseJ4;
 import org.apache.solr.cloud.hdfs.HdfsTestUtil;
 import org.apache.solr.util.BadHdfsThreadsFilter;
@@ -65,22 +67,46 @@ public class HdfsLockFactoryTest extends SolrTestCaseJ4 {
   
   @Test
   public void testBasic() throws IOException {
-    URI uri = dfsCluster.getURI();
-    Path lockPath = new Path(uri.toString(), "/basedir/lock");
-    Configuration conf = new Configuration();
+    String uri = HdfsTestUtil.getURI(dfsCluster);
+    Path lockPath = new Path(uri, "/basedir/lock");
+    Configuration conf = HdfsTestUtil.getClientConfiguration(dfsCluster);
     HdfsDirectory dir = new HdfsDirectory(lockPath, conf);
     Lock lock = dir.makeLock("testlock");
     boolean success = lock.obtain();
     assertTrue("We could not get the lock when it should be available", success);
-    success = lock.obtain();
+    Lock lock2 = dir.makeLock("testlock");
+    success = lock2.obtain();
     assertFalse("We got the lock but it should be unavailble", success);
-    lock.close();
+    IOUtils.close(lock, lock2);
+    // now repeat after close()
+    lock = dir.makeLock("testlock");
     success = lock.obtain();
     assertTrue("We could not get the lock when it should be available", success);
-    success = lock.obtain();
+    lock2 = dir.makeLock("testlock");
+    success = lock2.obtain();
     assertFalse("We got the lock but it should be unavailble", success);
+    IOUtils.close(lock, lock2);
     dir.close();
   }
   
-
+  public void testDoubleObtain() throws Exception {
+    String uri = HdfsTestUtil.getURI(dfsCluster);
+    Path lockPath = new Path(uri, "/basedir/lock");
+    Configuration conf = HdfsTestUtil.getClientConfiguration(dfsCluster);
+    HdfsDirectory dir = new HdfsDirectory(lockPath, conf);
+    Lock lock = dir.makeLock("foo");
+    assertTrue(lock.obtain());
+    try {
+      lock.obtain();
+      fail("did not hit double-obtain failure");
+    } catch (LockObtainFailedException lofe) {
+      // expected
+    }
+    lock.close();
+    
+    lock = dir.makeLock("foo");
+    assertTrue(lock.obtain());
+    lock.close();
+    dir.close();
+  }
 }

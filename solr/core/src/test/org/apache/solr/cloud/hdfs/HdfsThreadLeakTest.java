@@ -45,7 +45,7 @@ public class HdfsThreadLeakTest extends SolrTestCaseJ4 {
 
   @BeforeClass
   public static void beforeClass() throws Exception {
-    dfsCluster = HdfsTestUtil.setupClass(createTempDir().toFile().getAbsolutePath(), false);
+    dfsCluster = HdfsTestUtil.setupClass(createTempDir().toFile().getAbsolutePath(), false, false);
   }
 
   @AfterClass
@@ -66,8 +66,8 @@ public class HdfsThreadLeakTest extends SolrTestCaseJ4 {
   
   @Test
   public void testBasic() throws IOException {
-    URI uri = dfsCluster.getURI();
-    Path path = new Path(uri.toString());
+    String uri = HdfsTestUtil.getURI(dfsCluster);
+    Path path = new Path(uri);
     Configuration conf = new Configuration();
     conf.setBoolean("fs.hdfs.impl.disable.cache", true);
     FileSystem fs = FileSystem.get(path.toUri(), conf);

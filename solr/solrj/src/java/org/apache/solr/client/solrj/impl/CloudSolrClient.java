@@ -619,7 +619,13 @@ public class CloudSolrClient extends SolrClient {
       }
 
       if (exceptions.size() > 0) {
-        throw new RouteException(ErrorCode.SERVER_ERROR, exceptions, routes);
+        Throwable firstException = exceptions.getVal(0);
+        if(firstException instanceof SolrException) {
+          SolrException e = (SolrException) firstException;
+          throw new RouteException(ErrorCode.getErrorCode(e.code()), exceptions, routes);
+        } else {
+          throw new RouteException(ErrorCode.SERVER_ERROR, exceptions, routes);
+        }
       }
     } else {
       for (Map.Entry<String, LBHttpSolrClient.Req> entry : routes.entrySet()) {
@@ -629,7 +635,11 @@ public class CloudSolrClient extends SolrClient {
           NamedList<Object> rsp = lbClient.request(lbRequest).getResponse();
           shardResponses.add(url, rsp);
         } catch (Exception e) {
-          throw new SolrServerException(e);
+          if(e instanceof SolrException) {
+            throw (SolrException) e;
+          } else {
+            throw new SolrServerException(e);
+          }
         }
       }
     }
@@ -928,7 +938,9 @@ public class CloudSolrClient extends SolrClient {
         log.warn("Re-trying request to  collection(s) "+collection+" after stale state error from server.");
         resp = requestWithRetryOnStaleState(request, retryCount+1, collection);
       } else {
-        if (exc instanceof SolrServerException) {
+        if(exc instanceof SolrException) {
+          throw exc;
+        } if (exc instanceof SolrServerException) {
           throw (SolrServerException)exc;
         } else if (exc instanceof IOException) {
           throw (IOException)exc;
@@ -1056,7 +1068,7 @@ public class CloudSolrClient extends SolrClient {
         for (String s : collectionNames) {
           if(s!=null) collectionStateCache.remove(s);
         }
-        throw new SolrException(SolrException.ErrorCode.INVALID_STATE, "Not enough nodes to handle the request");
+        throw new SolrException(SolrException.ErrorCode.INVALID_STATE, "Could not find a healthy node to handle the request.");
       }
 
       Collections.shuffle(theUrlList, rand);

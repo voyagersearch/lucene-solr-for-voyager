@@ -69,6 +69,7 @@
     <property name="example.heap.size" value="512M"/>
     <java jar="${server.dir}/start.jar" fork="true" dir="${server.dir}" maxmemory="${example.heap.size}">
       <jvmarg line="${example.jvm.line}"/>
+      <arg value="--module=http"/>
       <sysproperty key="solr.solr.home" file="${example.solr.home}"/>
       <sysproperty key="jetty.port" value="${example.jetty.port}"/>
       <sysproperty key="jetty.home" value="${server.dir}"/>
@@ -277,14 +278,32 @@
   <target name="validate" depends="check-example-lucene-match-version,check-licenses,rat-sources,check-forbidden-apis" description="Validate stuff." />
 
   <target name="check-example-lucene-match-version">
-    <fail message="Some example solrconfig.xml files do not refer to the correct luceneMatchVersion: ${tests.luceneMatchVersion}">
+    <property name="configsets.dir" value="${server.dir}/solr/configsets"/>
+    <fail message="Some example solrconfig.xml files under ${configsets.dir} do not refer to the correct luceneMatchVersion: ${tests.luceneMatchVersion}">
       <condition>
         <resourcecount when="greater" count="0">
-          <fileset dir="${example}" includes="**/solrconfig.xml">
+          <fileset dir="${configsets.dir}" includes="**/solrconfig.xml">
             <not>
               <contains text="&lt;luceneMatchVersion&gt;${tests.luceneMatchVersion}&lt;" casesensitive="no"/>
             </not>
           </fileset>
+        </resourcecount>
+      </condition>
+    </fail>
+    <!-- Count the immediate sub-directories of the configsets dir to ensure all sub-dirs have a solrconfig.xml -->
+    <resourcecount property="count.subdirs">
+      <dirset dir="${configsets.dir}" includes="*"/>
+    </resourcecount>
+    <!-- Ensure there is at least one sub-directory -->
+    <fail message="No sub-directories found under ${configsets.dir}">
+      <condition>
+        <equals arg1="${count.subdirs}" arg2="0"/>
+      </condition>
+    </fail>
+    <fail message="At least one sub-directory under ${configsets.dir} does not have a solrconfig.xml file">
+      <condition>
+        <resourcecount when="ne" count="${count.subdirs}">
+          <fileset dir="${configsets.dir}" includes="**/solrconfig.xml"/>
         </resourcecount>
       </condition>
     </fail>
@@ -293,14 +312,14 @@
   <target name="check-licenses" depends="compile-tools,resolve,load-custom-tasks" description="Validate license stuff.">
     <license-check-macro dir="${basedir}" licensedir="${common-solr.dir}/licenses">
       <additional-excludes>
-        <!-- Exclude start.jar only (it'd be weird to have a license file there?) -->
-        <exclude name="server/start.jar" />
         <exclude name="example/exampledocs/post.jar" />
         <exclude name="server/solr-webapp/**" />
         <exclude name="package/**"/>
       </additional-excludes>
       <additional-filters>
         <replaceregex pattern="jetty([^/]+)$" replace="jetty" flags="gi" />
+        <!-- start.jar comes from jetty, .jar already stripped by checker defaults --> 
+        <replaceregex pattern="^start$" replace="jetty" flags="gi" />
         <replaceregex pattern="slf4j-([^/]+)$" replace="slf4j" flags="gi" />
         <replaceregex pattern="(bcmail|bcprov)-([^/]+)$" replace="\1" flags="gi" />
       </additional-filters>

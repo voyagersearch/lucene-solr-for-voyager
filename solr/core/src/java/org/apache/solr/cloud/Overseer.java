@@ -53,6 +53,7 @@ import org.apache.solr.common.cloud.ZkStateReader;
 import org.apache.solr.common.params.CollectionParams;
 import org.apache.solr.common.util.IOUtils;
 import org.apache.solr.core.CloudConfig;
+import org.apache.solr.handler.admin.CollectionsHandler;
 import org.apache.solr.handler.component.ShardHandler;
 import org.apache.solr.update.UpdateShardHandler;
 import org.apache.solr.util.stats.Clock;
@@ -100,7 +101,6 @@ public class Overseer implements Closeable {
 
     private final Stats zkStats;
 
-    private Map clusterProps;
     private boolean isClosed = false;
 
     public ClusterStateUpdater(final ZkStateReader reader, final String myId, Stats zkStats) {
@@ -113,7 +113,6 @@ public class Overseer implements Closeable {
       this.completedMap = getCompletedMap(zkClient);
       this.myId = myId;
       this.reader = reader;
-      clusterProps = reader.getClusterProps();
     }
 
     public Stats getStateUpdateQueueStats() {
@@ -344,9 +343,6 @@ public class Overseer implements Closeable {
             return new CollectionMutator(getZkStateReader()).deleteShard(clusterState, message);
           case ADDREPLICA:
             return new SliceMutator(getZkStateReader()).addReplica(clusterState, message);
-          case CLUSTERPROP:
-            handleProp(message);
-            break;
           case ADDREPLICAPROP:
             return new ReplicaMutator(getZkStateReader()).addReplicaProperty(clusterState, message);
           case DELETEREPLICAPROP:
@@ -358,6 +354,9 @@ public class Overseer implements Closeable {
               return new ZkWriteCommand(collName, dProp.getDocCollection());
             }
             break;
+          case MODIFYCOLLECTION:
+            CollectionsHandler.verifyRuleParams(zkController.getCoreContainer() ,message.getProperties());
+            return new CollectionMutator(reader).modifyCollection(clusterState,message);
           default:
             throw new RuntimeException("unknown operation:" + operation
                 + " contents:" + message.getProperties());
@@ -395,25 +394,6 @@ public class Overseer implements Closeable {
       }
 
       return ZkStateWriter.NO_OP;
-    }
-
-    private void handleProp(ZkNodeProps message)  {
-      String name = message.getStr(NAME);
-      String val = message.getStr("val");
-      Map m =  reader.getClusterProps();
-      if(val ==null) m.remove(name);
-      else m.put(name,val);
-
-      try {
-        if (reader.getZkClient().exists(ZkStateReader.CLUSTER_PROPS, true))
-          reader.getZkClient().setData(ZkStateReader.CLUSTER_PROPS, ZkStateReader.toJSON(m), true);
-        else
-          reader.getZkClient().create(ZkStateReader.CLUSTER_PROPS, ZkStateReader.toJSON(m),CreateMode.PERSISTENT, true);
-        clusterProps = reader.getClusterProps();
-      } catch (Exception e) {
-        log.error("Unable to set cluster property", e);
-
-      }
     }
 
     private LeaderStatus amILeader() {
@@ -825,6 +805,7 @@ public class Overseer implements Closeable {
     this.id = id;
     closed = false;
     doClose();
+    stats = new Stats();
     log.info("Overseer (id=" + id + ") starting");
     createOverseerNode(reader.getZkClient());
     //launch cluster state updater thread
@@ -834,7 +815,7 @@ public class Overseer implements Closeable {
 
     ThreadGroup ccTg = new ThreadGroup("Overseer collection creation process.");
 
-    overseerCollectionProcessor = new OverseerCollectionProcessor(reader, id, shardHandler, adminPath, stats);
+    overseerCollectionProcessor = new OverseerCollectionProcessor(reader, id, shardHandler, adminPath, stats, Overseer.this);
     ccThread = new OverseerThread(ccTg, overseerCollectionProcessor, "OverseerCollectionProcessor-" + id);
     ccThread.setDaemon(true);
     
@@ -851,6 +832,10 @@ public class Overseer implements Closeable {
 
   public Stats getStats() {
     return stats;
+  }
+
+  ZkController getZkController(){
+    return zkController;
   }
   
   /**
@@ -1047,6 +1032,10 @@ public class Overseer implements Closeable {
 
     public void setQueueLength(int queueLength) {
       this.queueLength = queueLength;
+    }
+
+    public void clear() {
+      stats.clear();
     }
   }
 

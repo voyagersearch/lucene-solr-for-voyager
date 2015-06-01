@@ -29,6 +29,9 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.spatial.query.SpatialOperation;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -81,8 +84,9 @@ public class ShapePredicateValueSource extends ValueSource {
       @Override
       public Explanation explain(int doc) {
         Explanation exp = super.explain(doc);
-        exp.addDetail(shapeValues.explain(doc));
-        return exp;
+        List<Explanation> details = new ArrayList<>(Arrays.asList(exp.getDetails()));
+        details.add(shapeValues.explain(doc));
+        return Explanation.match(exp.getValue(), exp.getDescription(), details);
       }
     };
   }

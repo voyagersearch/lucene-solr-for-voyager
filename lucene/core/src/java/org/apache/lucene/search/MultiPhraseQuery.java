@@ -93,6 +93,7 @@ public class MultiPhraseQuery extends Query {
    * @see PhraseQuery#add(Term, int)
    */
   public void add(Term[] terms, int position) {
+    Objects.requireNonNull(terms, "Term array must not be null");
     if (termArrays.size() == 0)
       field = terms[0].field();
 
@@ -126,16 +127,6 @@ public class MultiPhraseQuery extends Query {
     return result;
   }
 
-  // inherit javadoc
-  @Override
-  public void extractTerms(Set<Term> terms) {
-    for (final Term[] arr : termArrays) {
-      for (final Term term: arr) {
-        terms.add(term);
-      }
-    }
-  }
-
 
   private class MultiPhraseWeight extends Weight {
     private final Similarity similarity;
@@ -165,6 +156,15 @@ public class MultiPhraseQuery extends Query {
       stats = similarity.computeWeight(getBoost(),
           searcher.collectionStatistics(field), 
           allTermStats.toArray(new TermStatistics[allTermStats.size()]));
+    }
+
+    @Override
+    public void extractTerms(Set<Term> terms) {
+      for (final Term[] arr : termArrays) {
+        for (final Term term: arr) {
+          terms.add(term);
+        }
+      }
     }
 
     @Override
@@ -244,17 +244,16 @@ public class MultiPhraseQuery extends Query {
         if (newDoc == doc) {
           float freq = slop == 0 ? scorer.freq() : ((SloppyPhraseScorer)scorer).sloppyFreq();
           SimScorer docScorer = similarity.simScorer(stats, context);
-          ComplexExplanation result = new ComplexExplanation();
-          result.setDescription("weight("+getQuery()+" in "+doc+") [" + similarity.getClass().getSimpleName() + "], result of:");
-          Explanation scoreExplanation = docScorer.explain(doc, new Explanation(freq, "phraseFreq=" + freq));
-          result.addDetail(scoreExplanation);
-          result.setValue(scoreExplanation.getValue());
-          result.setMatch(true);          
-          return result;
+          Explanation freqExplanation = Explanation.match(freq, "phraseFreq=" + freq);
+          Explanation scoreExplanation = docScorer.explain(doc, freqExplanation);
+          return Explanation.match(
+              scoreExplanation.getValue(),
+              "weight("+getQuery()+" in "+doc+") [" + similarity.getClass().getSimpleName() + "], result of:",
+              scoreExplanation);
         }
       }
       
-      return new ComplexExplanation(false, 0.0f, "no matching term");
+      return Explanation.noMatch("no matching term");
     }
   }
 

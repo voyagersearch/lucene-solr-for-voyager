@@ -314,6 +314,18 @@ public abstract class LuceneTestCase extends Assert {
   }
   
   /**
+   * Annotation for test classes that should avoid always omit
+   * actual fsync calls from reaching the filesystem.
+   * <p>
+   * This can be useful, e.g. if they make many lucene commits.
+   */
+  @Documented
+  @Inherited
+  @Retention(RetentionPolicy.RUNTIME)
+  @Target(ElementType.TYPE)
+  public @interface SuppressFsync {}
+  
+  /**
    * Marks any suites which are known not to close all the temporary
    * files. This may prevent temp. files and folders from being cleaned
    * up after the suite is completed.
@@ -345,6 +357,16 @@ public abstract class LuceneTestCase extends Assert {
     public String bugUrl();
   }
 
+  /**
+   * Suppress the default {@code reproduce with: ant test...}
+   * Your own listener can be added as needed for your build.
+   */
+  @Documented
+  @Inherited
+  @Retention(RetentionPolicy.RUNTIME)
+  @Target(ElementType.TYPE)
+  public @interface SuppressReproduceLine {}
+  
   // -----------------------------------------------------------------
   // Truly immutable fields and constants, initialized once and valid 
   // for all suites ever since.
@@ -468,7 +490,7 @@ public abstract class LuceneTestCase extends Assert {
   /**
    * Suite failure marker (any error in the test or suite scope).
    */
-  private static TestRuleMarkFailure suiteFailureMarker;
+  protected static TestRuleMarkFailure suiteFailureMarker;
   
   /**
    * Temporary files cleanup rule.
@@ -1090,6 +1112,8 @@ public abstract class LuceneTestCase extends Assert {
   public static void maybeChangeLiveIndexWriterConfig(Random r, LiveIndexWriterConfig c) {
     boolean didChange = false;
 
+    String previous = c.toString();
+    
     if (rarely(r)) {
       // change flush parameters:
       // this is complicated because the api requires you "invoke setters in a magical order!"
@@ -1202,7 +1226,29 @@ public abstract class LuceneTestCase extends Assert {
       didChange = true;
     }
     if (VERBOSE && didChange) {
-      System.out.println("NOTE: LuceneTestCase: randomly changed IWC's live settings to:\n" + c);
+      String current = c.toString();
+      String previousLines[] = previous.split("\n");
+      String currentLines[] = current.split("\n");
+      StringBuilder diff = new StringBuilder();
+
+      // this should always be the case, diff each line
+      if (previousLines.length == currentLines.length) {
+        for (int i = 0; i < previousLines.length; i++) {
+          if (!previousLines[i].equals(currentLines[i])) {
+            diff.append("- " + previousLines[i] + "\n");
+            diff.append("+ " + currentLines[i] + "\n");
+          }
+        }
+      } else {
+        // but just in case of something ridiculous...
+        diff.append(current.toString());
+      }
+      
+      // its possible to be empty, if we "change" a value to what it had before.
+      if (diff.length() > 0) {
+        System.out.println("NOTE: LuceneTestCase: randomly changed IWC's live settings:");
+        System.out.println(diff);
+      }
     }
   }
 
@@ -1691,6 +1737,32 @@ public abstract class LuceneTestCase extends Assert {
   public static void resetDefaultQueryCache() {
     IndexSearcher.setDefaultQueryCache(DEFAULT_QUERY_CACHE);
     IndexSearcher.setDefaultQueryCachingPolicy(DEFAULT_CACHING_POLICY);
+  }
+
+  @BeforeClass
+  public static void setupCPUCoreCount() {
+    // Randomize core count so CMS varies its dynamic defaults, and this also "fixes" core
+    // count from the master seed so it will always be the same on reproduce:
+    int numCores = TestUtil.nextInt(random(), 1, 4);
+    System.setProperty(ConcurrentMergeScheduler.DEFAULT_CPU_CORE_COUNT_PROPERTY, Integer.toString(numCores));
+  }
+
+  @AfterClass
+  public static void restoreCPUCoreCount() {
+    System.clearProperty(ConcurrentMergeScheduler.DEFAULT_CPU_CORE_COUNT_PROPERTY);
+  }
+
+  @BeforeClass
+  public static void setupSpins() {
+    // Randomize IOUtils.spins() count so CMS varies its dynamic defaults, and this also "fixes" core
+    // count from the master seed so it will always be the same on reproduce:
+    boolean spins = random().nextBoolean();
+    System.setProperty(ConcurrentMergeScheduler.DEFAULT_SPINS_PROPERTY, Boolean.toString(spins));
+  }
+
+  @AfterClass
+  public static void restoreSpins() {
+    System.clearProperty(ConcurrentMergeScheduler.DEFAULT_SPINS_PROPERTY);
   }
 
   /**

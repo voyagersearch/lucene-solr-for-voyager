@@ -17,13 +17,15 @@ package org.apache.lucene.search.join;
  * limitations under the License.
  */
 
+import java.io.IOException;
+import java.util.Set;
+
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.MultiDocValues;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.ComplexExplanation;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
@@ -35,9 +37,6 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LongBitSet;
 import org.apache.lucene.util.LongValues;
-
-import java.io.IOException;
-import java.util.Set;
 
 final class GlobalOrdinalsQuery extends Query {
 
@@ -64,11 +63,6 @@ final class GlobalOrdinalsQuery extends Query {
   @Override
   public Weight createWeight(IndexSearcher searcher, boolean needsScores) throws IOException {
     return new W(this, toQuery.createWeight(searcher, false));
-  }
-
-  @Override
-  public void extractTerms(Set<Term> terms) {
-    fromQuery.extractTerms(terms);
   }
 
   @Override
@@ -117,16 +111,19 @@ final class GlobalOrdinalsQuery extends Query {
     }
 
     @Override
+    public void extractTerms(Set<Term> terms) {}
+
+    @Override
     public Explanation explain(LeafReaderContext context, int doc) throws IOException {
       SortedDocValues values = DocValues.getSorted(context.reader(), joinField);
       if (values != null) {
         int segmentOrd = values.getOrd(doc);
         if (segmentOrd != -1) {
           BytesRef joinValue = values.lookupOrd(segmentOrd);
-          return new ComplexExplanation(true, queryNorm, "Score based on join value " + joinValue.utf8ToString());
+          return Explanation.match(queryNorm, "Score based on join value " + joinValue.utf8ToString());
         }
       }
-      return new ComplexExplanation(false, 0.0f, "Not a match");
+      return Explanation.noMatch("Not a match");
     }
 
     @Override
@@ -163,11 +160,13 @@ final class GlobalOrdinalsQuery extends Query {
 
   final static class OrdinalMapScorer extends BaseGlobalOrdinalScorer {
 
+    final LongBitSet foundOrds;
     final LongValues segmentOrdToGlobalOrdLookup;
 
     public OrdinalMapScorer(Weight weight, float score, LongBitSet foundOrds, SortedDocValues values, Scorer approximationScorer, LongValues segmentOrdToGlobalOrdLookup) {
-      super(weight, foundOrds, values, approximationScorer);
+      super(weight, values, approximationScorer);
       this.score = score;
+      this.foundOrds = foundOrds;
       this.segmentOrdToGlobalOrdLookup = segmentOrdToGlobalOrdLookup;
     }
 
@@ -206,9 +205,12 @@ final class GlobalOrdinalsQuery extends Query {
 
   final static class SegmentOrdinalScorer extends BaseGlobalOrdinalScorer {
 
+    final LongBitSet foundOrds;
+
     public SegmentOrdinalScorer(Weight weight, float score, LongBitSet foundOrds, SortedDocValues values, Scorer approximationScorer) {
-      super(weight, foundOrds, values, approximationScorer);
+      super(weight, values, approximationScorer);
       this.score = score;
+      this.foundOrds = foundOrds;
     }
 
     @Override

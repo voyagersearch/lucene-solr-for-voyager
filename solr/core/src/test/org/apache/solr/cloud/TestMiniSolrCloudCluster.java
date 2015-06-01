@@ -22,10 +22,13 @@ import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.LuceneTestCase.SuppressSysoutChecks;
 import org.apache.solr.SolrTestCaseJ4;
 import org.apache.solr.client.solrj.SolrQuery;
+import org.apache.solr.client.solrj.SolrServerException;
 import org.apache.solr.client.solrj.embedded.JettyConfig;
+import org.apache.solr.client.solrj.embedded.JettyConfig.Builder;
 import org.apache.solr.client.solrj.embedded.JettySolrRunner;
 import org.apache.solr.client.solrj.impl.CloudSolrClient;
 import org.apache.solr.client.solrj.response.QueryResponse;
+import org.apache.solr.common.SolrException;
 import org.apache.solr.common.SolrInputDocument;
 import org.apache.solr.common.cloud.ClusterState;
 import org.apache.solr.common.cloud.Replica;
@@ -59,10 +62,16 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class TestMiniSolrCloudCluster extends LuceneTestCase {
 
   private static Logger log = LoggerFactory.getLogger(MiniSolrCloudCluster.class);
-  private static final int NUM_SERVERS = 5;
-  private static final int NUM_SHARDS = 2;
-  private static final int REPLICATION_FACTOR = 2;
+  protected int NUM_SERVERS = 5;
+  protected int NUM_SHARDS = 2;
+  protected int REPLICATION_FACTOR = 2;
 
+  public TestMiniSolrCloudCluster () {
+    NUM_SERVERS = 5;
+    NUM_SHARDS = 2;
+    REPLICATION_FACTOR = 2;
+  }
+  
   @Rule
   public TestRule solrTestRules = RuleChain
       .outerRule(new SystemPropertiesRestoreRule());
@@ -74,9 +83,17 @@ public class TestMiniSolrCloudCluster extends LuceneTestCase {
 
   @Test
   public void testBasics() throws Exception {
+    testCollectionCreateSearchDelete();
+    // sometimes run a second test e.g. to test collection create-delete-create scenario
+    if (random().nextBoolean()) testCollectionCreateSearchDelete();
+  }
+    
+  protected void testCollectionCreateSearchDelete() throws Exception {
 
     File solrXml = new File(SolrTestCaseJ4.TEST_HOME(), "solr-no-core.xml");
-    MiniSolrCloudCluster miniCluster = new MiniSolrCloudCluster(NUM_SERVERS, null, createTempDir().toFile(), solrXml, null, null);
+    Builder jettyConfig = JettyConfig.builder();
+    jettyConfig.waitForLoadingCoresToFinish(null);
+    MiniSolrCloudCluster miniCluster = new MiniSolrCloudCluster(NUM_SERVERS, createTempDir().toFile(), solrXml, jettyConfig.build());
 
     try {
       assertNotNull(miniCluster.getZkServer());
@@ -114,8 +131,8 @@ public class TestMiniSolrCloudCluster extends LuceneTestCase {
       miniCluster.createCollection(collectionName, NUM_SHARDS, REPLICATION_FACTOR, configName, collectionProperties);
 
       try (SolrZkClient zkClient = new SolrZkClient
-          (miniCluster.getZkServer().getZkAddress(), AbstractZkTestCase.TIMEOUT, 45000, null)) {
-        ZkStateReader zkStateReader = new ZkStateReader(zkClient);
+          (miniCluster.getZkServer().getZkAddress(), AbstractZkTestCase.TIMEOUT, 45000, null);
+          ZkStateReader zkStateReader = new ZkStateReader(zkClient)) {
         AbstractDistribZkTestBase.waitForRecoveriesToFinish(collectionName, zkStateReader, true, true, 330);
 
         // modify/query collection
@@ -155,6 +172,27 @@ public class TestMiniSolrCloudCluster extends LuceneTestCase {
             assertEquals(NUM_SERVERS - 1, miniCluster.getJettySolrRunners().size());
           }
         }
+
+        // now restore the original state so that this function could be called multiple times
+        
+        // re-create a server (to restore original NUM_SERVERS count)
+        startedServer = miniCluster.startJettySolrRunner(null, null, null);
+        assertTrue(startedServer.isRunning());
+        assertEquals(NUM_SERVERS, miniCluster.getJettySolrRunners().size());
+        Thread.sleep(15000);
+        try {
+          cloudSolrClient.query(query);
+          fail("Expected exception on query because collection should not be ready - we have turned on async core loading");
+        } catch (SolrServerException e) {
+          SolrException rc = (SolrException) e.getRootCause();
+          assertTrue(rc.code() >= 500 && rc.code() < 600);
+        } catch (SolrException e) {
+          assertTrue(e.code() >= 500 && e.code() < 600);
+        }
+
+        // delete the collection we created earlier
+        miniCluster.deleteCollection(collectionName);
+        AbstractDistribZkTestBase.waitForCollectionToDisappear(collectionName, zkStateReader, true, true, 330);
       }
     }
     finally {

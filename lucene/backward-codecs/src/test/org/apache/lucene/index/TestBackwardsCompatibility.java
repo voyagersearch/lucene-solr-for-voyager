@@ -77,11 +77,21 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 /*
-  Verify we can read the pre-5.0 file format, do searches
-  against it, and add documents to it.
+  Verify we can read previous versions' indexes, do searches
+  against them, and add documents to them.
 */
 public class TestBackwardsCompatibility extends LuceneTestCase {
 
+  // Backcompat index generation, described below, is mostly automated in: 
+  //
+  //    dev-tools/scripts/addBackCompatIndexes.py
+  //
+  // For usage information, see:
+  //
+  //    http://wiki.apache.org/lucene-java/ReleaseTodo#Generate_Backcompat_Indexes
+  //
+  // -----
+  //
   // To generate backcompat indexes with the current default codec, run the following ant command:
   //  ant test -Dtestcase=TestBackwardsCompatibility -Dtests.bwcdir=/path/to/store/indexes
   //           -Dtests.codec=default -Dtests.useSecurityManager=false
@@ -258,7 +268,9 @@ public class TestBackwardsCompatibility extends LuceneTestCase {
       "4.10.4-cfs",
       "4.10.4-nocfs",
       "5.0.0-cfs",
-      "5.0.0-nocfs"
+      "5.0.0-nocfs",
+      "5.1.0-cfs",
+      "5.1.0-nocfs"
   };
   
   final String[] unsupportedNames = {

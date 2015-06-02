@@ -268,7 +268,7 @@ public class SolrReturnFields extends ReturnFields {
                 String[] extra = t.getExtraRequestFields();
                 if(extra!=null) {
                   for(String f : extra) {
-                    fields.add(f);
+                    fields.add(f); // also request this field from IndexSearcher
                   }
                 }
               }

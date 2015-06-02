@@ -29,6 +29,10 @@ New Features
 * SOLR-7389: Expose znodeVersion property for each of the collections returned for the clusterstatus
   operation in the collections API (Marius Grama via shalin)
 
+* SOLR-7622: A DocTransformer can now request fields from the SolrIndexSearcher that are not
+  necessarily returned in the file SolrDocument by returning a list of fields from 
+  DocTransformer#getExtraRequestFields  (ryan)
+
 Bug Fixes
 ----------------------
 
@@ -51,6 +55,10 @@ Other Changes
   (Vamsee Yarlagadda via shalin)
 
 * SOLR-7590: Finish and improve MDC context logging support. (Mark Miller)  
+
+* SOLR-7623: Fix regression from SOLR-7484 that made it impossible to override 
+  SolrDispatchFilter#execute() and SolrDispatchFilter#sendError().  You can now override these
+  functions in HttpSolrCall.  (ryan)
 
 
 ==================  5.2.0 ==================

@@ -17,10 +17,8 @@ package org.apache.lucene.spatial.query;
  * limitations under the License.
  */
 
-import org.apache.lucene.spatial.query.SpatialOperation;
 import com.spatial4j.core.context.SpatialContext;
 import com.spatial4j.core.shape.Rectangle;
-
 import org.apache.lucene.util.LuceneTestCase;
 import org.junit.Test;
 

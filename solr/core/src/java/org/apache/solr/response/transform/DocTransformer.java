@@ -50,13 +50,6 @@ public abstract class DocTransformer
   public void setContext( TransformContext context ) {}
 
   /**
-   * Return fields
-   */
-  public String[] getExtraRequestFields() {
-    return null;
-  }
-  
-  /**
    * This is where implementations do the actual work
    *
    *

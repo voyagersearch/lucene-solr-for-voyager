@@ -17,9 +17,7 @@ package org.apache.lucene.benchmark.byTask.feeds;
  * limitations under the License.
  */
 
-import org.apache.lucene.spatial.query.SpatialOperation;
 import com.spatial4j.core.shape.Shape;
-
 import org.apache.lucene.benchmark.byTask.utils.Config;
 import org.apache.lucene.queries.CustomScoreQuery;
 import org.apache.lucene.queries.function.FunctionQuery;

@@ -17,11 +17,9 @@ package org.apache.lucene.spatial.prefix;
  * limitations under the License.
  */
 
-import org.apache.lucene.spatial.query.SpatialOperation;
 import com.spatial4j.core.context.SpatialContextFactory;
 import com.spatial4j.core.shape.Point;
 import com.spatial4j.core.shape.Shape;
-
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Field.Store;
@@ -34,6 +32,7 @@ import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.QuadPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.SpatialPrefixTree;
 import org.apache.lucene.spatial.query.SpatialArgs;
+import org.apache.lucene.spatial.query.SpatialOperation;
 import org.junit.Test;
 
 import java.text.ParseException;

@@ -30,10 +30,8 @@ import java.util.List;
 import java.util.Set;
 import java.util.logging.Logger;
 
-import org.apache.lucene.spatial.query.SpatialOperation;
 import com.spatial4j.core.context.SpatialContext;
 import com.spatial4j.core.shape.Shape;
-
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StoredField;
@@ -48,6 +46,7 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.spatial.query.SpatialArgs;
 import org.apache.lucene.spatial.query.SpatialArgsParser;
+import org.apache.lucene.spatial.query.SpatialOperation;
 
 public abstract class StrategyTestCase extends SpatialTestCase {
 

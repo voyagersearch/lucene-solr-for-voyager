@@ -17,7 +17,6 @@ package org.apache.lucene.spatial.util;
  * limitations under the License.
  */
 
-import org.apache.lucene.spatial.query.SpatialOperation;
 import com.spatial4j.core.shape.Shape;
 
 import org.apache.lucene.index.LeafReaderContext;

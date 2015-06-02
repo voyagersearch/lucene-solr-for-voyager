@@ -40,9 +40,7 @@ import org.apache.lucene.spatial.query.UnsupportedSpatialOperation;
 import org.apache.lucene.spatial.util.DistanceToShapeValueSource;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.NumericUtils;
-
-import org.apache.lucene.spatial.query.SpatialOperation;
-import com.spatial4j.core.context.SpatialContext;import org.apache.lucene.spatial.query.UnsupportedSpatialOperation;
+import com.spatial4j.core.context.SpatialContext;
 import com.spatial4j.core.shape.Point;
 import com.spatial4j.core.shape.Rectangle;
 import com.spatial4j.core.shape.Shape;

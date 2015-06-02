@@ -30,7 +30,6 @@ import java.util.Map;
 import java.util.Set;
 
 import com.carrotsearch.randomizedtesting.annotations.Repeat;
-import org.apache.lucene.spatial.query.SpatialOperation;
 import com.spatial4j.core.context.SpatialContext;
 import com.spatial4j.core.context.SpatialContextFactory;
 import com.spatial4j.core.shape.Point;
@@ -39,7 +38,6 @@ import com.spatial4j.core.shape.Shape;
 import com.spatial4j.core.shape.ShapeCollection;
 import com.spatial4j.core.shape.SpatialRelation;
 import com.spatial4j.core.shape.impl.RectangleImpl;
-
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StoredField;
@@ -53,6 +51,7 @@ import org.apache.lucene.spatial.prefix.tree.PackedQuadPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.QuadPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.SpatialPrefixTree;
 import org.apache.lucene.spatial.query.SpatialArgs;
+import org.apache.lucene.spatial.query.SpatialOperation;
 import org.junit.Test;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomBoolean;
@@ -448,7 +447,7 @@ public class RandomSpatialOpFuzzyPrefixTreeTest extends StrategyTestCase {
     final boolean biasContainsThenWithin;
 
     public ShapePair(Shape shape1, Shape shape2, boolean containsThenWithin) {
-      super(Arrays.asList(shape1, shape2), shape1.getContext());
+      super(Arrays.asList(shape1, shape2), ctx);
       this.shape1 = shape1;
       this.shape2 = shape2;
       this.shape1_2D = toNonGeo(shape1);

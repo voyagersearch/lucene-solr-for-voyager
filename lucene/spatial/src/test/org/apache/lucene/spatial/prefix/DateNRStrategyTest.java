@@ -21,11 +21,10 @@ import java.io.IOException;
 import java.util.Calendar;
 
 import com.carrotsearch.randomizedtesting.annotations.Repeat;
-import org.apache.lucene.spatial.query.SpatialOperation;
 import com.spatial4j.core.shape.Shape;
-
 import org.apache.lucene.spatial.prefix.tree.DateRangePrefixTree;
 import org.apache.lucene.spatial.prefix.tree.NumberRangePrefixTree.UnitNRShape;
+import org.apache.lucene.spatial.query.SpatialOperation;
 import org.junit.Before;
 import org.junit.Test;
 

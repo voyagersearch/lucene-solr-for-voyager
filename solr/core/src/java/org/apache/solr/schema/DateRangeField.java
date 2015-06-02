@@ -23,7 +23,6 @@ import java.util.Date;
 import java.util.List;
 import java.util.Map;
 
-import org.apache.lucene.spatial.query.SpatialOperation;
 import com.spatial4j.core.shape.Shape;
 
 import org.apache.lucene.index.IndexableField;
@@ -33,6 +32,7 @@ import org.apache.lucene.spatial.prefix.tree.DateRangePrefixTree;
 import org.apache.lucene.spatial.prefix.tree.NumberRangePrefixTree.NRShape;
 import org.apache.lucene.spatial.prefix.tree.NumberRangePrefixTree.UnitNRShape;
 import org.apache.lucene.spatial.query.SpatialArgs;
+import org.apache.lucene.spatial.query.SpatialOperation;
 import org.apache.solr.common.SolrException;
 import org.apache.solr.common.params.SolrParams;
 import org.apache.solr.request.SolrRequestInfo;

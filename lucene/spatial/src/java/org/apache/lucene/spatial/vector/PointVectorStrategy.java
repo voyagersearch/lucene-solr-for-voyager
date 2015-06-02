@@ -17,13 +17,11 @@ package org.apache.lucene.spatial.vector;
  * limitations under the License.
  */
 
-import org.apache.lucene.spatial.query.SpatialOperation;
-import com.spatial4j.core.context.SpatialContext;import org.apache.lucene.spatial.query.UnsupportedSpatialOperation;
+import com.spatial4j.core.context.SpatialContext;
 import com.spatial4j.core.shape.Circle;
 import com.spatial4j.core.shape.Point;
 import com.spatial4j.core.shape.Rectangle;
 import com.spatial4j.core.shape.Shape;
-
 import org.apache.lucene.document.DoubleField;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
@@ -55,7 +53,8 @@ import org.apache.lucene.spatial.util.ValueSourceFilter;
  * <ul>
  * <li>Only indexes points; just one per field value.</li>
  * <li>Can query by a rectangle or circle.</li>
- * <li>{@link SpatialOperation#Intersects} and {@link
+ * <li>{@link
+ * org.apache.lucene.spatial.query.SpatialOperation#Intersects} and {@link
  * SpatialOperation#IsWithin} is supported.</li>
  * <li>Uses the FieldCache for
  * {@link #makeDistanceValueSource(com.spatial4j.core.shape.Point)} and for
@@ -191,8 +190,8 @@ public class PointVectorStrategy extends SpatialStrategy {
         spatial = makeWithin(bbox);
     }
     else if( SpatialOperation.is( op,
-        SpatialOperation.Intersects,
-        SpatialOperation.IsWithin ) ) {
+      SpatialOperation.Intersects,
+      SpatialOperation.IsWithin ) ) {
       spatial = makeWithin(bbox);
       if( args.getShape() instanceof Circle) {
         Circle circle = (Circle)args.getShape();

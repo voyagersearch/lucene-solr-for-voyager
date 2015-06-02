@@ -22,10 +22,8 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-import org.apache.lucene.spatial.query.SpatialOperation;
 import com.spatial4j.core.shape.Point;
 import com.spatial4j.core.shape.Shape;
-
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
@@ -56,7 +54,7 @@ import org.apache.lucene.spatial.util.ShapeFieldCacheDistanceValueSource;
  * </li>
  * <li>Can query with any shape.  The shape's boundary is approximated to a grid
  * precision.</li>
- * <li>Only {@link SpatialOperation#Intersects}
+ * <li>Only {@link org.apache.lucene.spatial.query.SpatialOperation#Intersects}
  * is supported.  If only points are indexed then this is effectively equivalent
  * to IsWithin.</li>
  * <li>The strategy supports {@link #makeDistanceValueSource(com.spatial4j.core.shape.Point,double)}

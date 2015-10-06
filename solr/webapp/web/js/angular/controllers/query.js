@@ -16,8 +16,8 @@
 */
 
 solrAdminApp.controller('QueryController',
-  function($scope, $routeParams, $location, Query){
-    $scope.resetMenu("query");
+  function($scope, $routeParams, $location, Query, Constants){
+    $scope.resetMenu("query", Constants.IS_COLLECTION_PAGE);
 
     // @todo read URL parameters into scope
     $scope.query = {wt: 'json', q:'*:*', indent:'on'};
@@ -30,17 +30,29 @@ solrAdminApp.controller('QueryController',
     $scope.spellcheck = {spellcheck:"on"};
     $scope.qt = "/select";
 
-    var copy = function(params, query) {
-      for (var key in query) {
-        terms = query[key];
-        if (terms.length > 0 && key[0]!="$") {
-          params.push(key + "=" + terms);
-        }
-      }
-    };
+    if ($location.search().q) {
+      $scope.query.q = $location.search()["q"];
+    }
 
     $scope.doQuery = function() {
-      var params = [];
+      var params = {};
+
+      var set = function(key, value) {
+        if (params[key]) {
+          params[key].push(value);
+        } else {
+          params[key] = [value];
+        }
+      }
+      var copy = function(params, query) {
+        for (var key in query) {
+          terms = query[key];
+          if (terms.length > 0 && key[0]!="$") {
+            set(key, terms);
+          }
+        }
+      };
+
       copy(params, $scope.query);
 
       if ($scope.isDismax)     copy(params, $scope.dismax);
@@ -51,19 +63,22 @@ solrAdminApp.controller('QueryController',
       if ($scope.isSpellcheck) copy(params, $scope.spellcheck);
 
       if ($scope.rawParams) {
-        for (var param in $scope.rawParams.split("\n")) {
-          params.push(param);
+        for (var param in $scope.rawParams.split(/[&\n]/)) {
+            var parts = param.split("=");
+            set(parts[0], parts[1]);
         }
       }
 
-      var qt = $scope.qt ? $scope.qt : "/select";
+      var qt = $scope.qt ? $scope.qt : "select";
 
       for (var filter in $scope.filters) {
         copy(params, $scope.filters[filter]);
       }
 
-      var url = "/solr/" + $routeParams.core + qt + "?" + params.join("&");
-      Query.query(url, function(data) {
+      params.core = $routeParams.core;
+      params.handler = qt;
+      var url = Query.url(params);
+      Query.query(params, function(data) {
         $scope.lang = $scope.query.wt;
         $scope.response = data;
         $scope.url = $location.protocol() + "://" +

@@ -33,7 +33,7 @@
  * <h2>Search Basics</h2>
  * <p>
  * Lucene offers a wide variety of {@link org.apache.lucene.search.Query} implementations, most of which are in
- * this package, its subpackages ({@link org.apache.lucene.search.spans spans}, {@link org.apache.lucene.search.payloads payloads}),
+ * this package, its subpackage ({@link org.apache.lucene.search.spans spans},
  * or the <a href="{@docRoot}/../queries/overview-summary.html">queries module</a>. These implementations can be combined in a wide 
  * variety of ways to provide complex querying capabilities along with information about where matches took place in the document 
  * collection. The <a href="#query">Query Classes</a> section below highlights some of the more important Query classes. For details 
@@ -207,7 +207,7 @@
  *     {@link org.apache.lucene.search.FuzzyQuery FuzzyQuery}
  *     matches documents that contain terms similar to the specified term. Similarity is
  *     determined using
- *     <a href="http://en.wikipedia.org/wiki/Levenshtein">Levenshtein (edit) distance</a>.
+ *     <a href="http://en.wikipedia.org/wiki/Levenshtein_distance">Levenshtein distance</a>.
  *     This type of query can be useful when accounting for spelling variations in the collection.
  * 
  * 
@@ -274,8 +274,8 @@
  *       <li><b>Index-time boost</b> by calling
  *        {@link org.apache.lucene.document.Field#setBoost(float) Field.setBoost()} before a document is 
  *        added to the index.</li>
- *       <li><b>Query-time boost</b> by setting a boost on a query clause, calling
- *        {@link org.apache.lucene.search.Query#setBoost(float) Query.setBoost()}.</li>
+ *       <li><b>Query-time boost</b> by applying a boost to a query by wrapping with
+ *       {@link org.apache.lucene.search.BoostQuery}.</li>
  *    </ul>    
  * <p>Indexing time boosts are pre-processed for storage efficiency and written to
  *    storage for a field as follows:
@@ -366,7 +366,7 @@
  *             <li>{@link org.apache.lucene.search.Query#rewrite(org.apache.lucene.index.IndexReader) rewrite(IndexReader reader)} &mdash; Rewrites queries into primitive queries. Primitive queries are:
  *                 {@link org.apache.lucene.search.TermQuery TermQuery},
  *                 {@link org.apache.lucene.search.BooleanQuery BooleanQuery}, <span
- *                     >and other queries that implement {@link org.apache.lucene.search.Query#createWeight(IndexSearcher,boolean) createWeight(IndexSearcher searcher,boolean)}</span></li>
+ *                     >and other queries that implement {@link org.apache.lucene.search.Query#createWeight(IndexSearcher,boolean) createWeight(IndexSearcher searcher,boolean,float)}</span></li>
  *         </ol>
  * <a name="weightClass"></a>
  * <h3>The Weight Interface</h3>
@@ -389,10 +389,10 @@
  *                 For example, with {@link org.apache.lucene.search.similarities.TFIDFSimilarity Lucene's classic vector-space formula}, this
  *                 is implemented as the sum of squared weights: <code>(idf * boost)<sup>2</sup></code></li>
  *             <li>
- *                 {@link org.apache.lucene.search.Weight#normalize(float,float) normalize(float norm, float topLevelBoost)} &mdash; 
+ *                 {@link org.apache.lucene.search.Weight#normalize(float,float) normalize(float norm, float boost)} &mdash; 
  *                 Performs query normalization: 
  *                 <ul>
- *                 <li><code>topLevelBoost</code>: A query-boost factor from any wrapping queries that should be multiplied into every
+ *                 <li><code>boost</code>: A query-boost factor from any wrapping queries that should be multiplied into every
  *                 document's score. For example, a TermQuery that is wrapped within a BooleanQuery with a boost of <code>5</code> would
  *                 receive this value at this time. This allows the TermQuery (the leaf node in this case) to compute this up-front
  *                 a single time (e.g. by multiplying into the IDF), rather than for every document.</li> 
@@ -470,7 +470,7 @@
  *         abstract method:
  *         <ol>
  *             <li>
- *                 {@link org.apache.lucene.search.BulkScorer#score(org.apache.lucene.search.LeafCollector,int,int) score(LeafCollector,int,int)} &mdash;
+ *                 {@link org.apache.lucene.search.BulkScorer#score(org.apache.lucene.search.LeafCollector,org.apache.lucene.util.Bits,int,int) score(LeafCollector,Bits,int,int)} &mdash;
  *     Score all documents up to but not including the specified max document.
  *       </li>
  *         </ol>
@@ -522,7 +522,7 @@
  * <p>If a Filter is being used, some initial setup is done to determine which docs to include. 
  *    Otherwise, we ask the Weight for a {@link org.apache.lucene.search.Scorer Scorer} for each
  *    {@link org.apache.lucene.index.IndexReader IndexReader} segment and proceed by calling
- *    {@link org.apache.lucene.search.BulkScorer#score(org.apache.lucene.search.LeafCollector) BulkScorer.score(LeafCollector)}.
+ *    {@link org.apache.lucene.search.BulkScorer#score(org.apache.lucene.search.LeafCollector,org.apache.lucene.util.Bits) BulkScorer.score(LeafCollector,Bits)}.
  * <p>At last, we are actually going to score some documents. The score method takes in the Collector
  *    (most likely the TopScoreDocCollector or TopFieldCollector) and does its business.Of course, here 
  *    is where things get involved. The {@link org.apache.lucene.search.Scorer Scorer} that is returned

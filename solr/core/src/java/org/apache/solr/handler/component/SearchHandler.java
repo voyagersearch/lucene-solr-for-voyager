@@ -35,7 +35,6 @@ import org.apache.solr.common.params.ModifiableSolrParams;
 import org.apache.solr.common.params.ShardParams;
 import org.apache.solr.common.util.NamedList;
 import org.apache.solr.common.util.SimpleOrderedMap;
-import org.apache.solr.common.util.StrUtils;
 import org.apache.solr.core.CloseHook;
 import org.apache.solr.core.PluginInfo;
 import org.apache.solr.core.SolrCore;
@@ -44,7 +43,7 @@ import org.apache.solr.request.SolrQueryRequest;
 import org.apache.solr.response.SolrQueryResponse;
 import org.apache.solr.search.SolrQueryTimeoutImpl;
 import org.apache.solr.search.facet.FacetModule;
-import org.apache.solr.util.RTimer;
+import org.apache.solr.util.RTimerTree;
 import org.apache.solr.util.SolrPluginUtils;
 import org.apache.solr.util.plugin.PluginInfoInitialized;
 import org.apache.solr.util.plugin.SolrCoreAware;
@@ -78,7 +77,7 @@ public class SearchHandler extends RequestHandlerBase implements SolrCoreAware ,
 
   protected List<String> getDefaultComponents()
   {
-    ArrayList<String> names = new ArrayList<>(6);
+    ArrayList<String> names = new ArrayList<>(8);
     names.add( QueryComponent.COMPONENT_NAME );
     names.add( FacetComponent.COMPONENT_NAME );
     names.add( FacetModule.COMPONENT_NAME );
@@ -203,6 +202,29 @@ public class SearchHandler extends RequestHandlerBase implements SolrCoreAware ,
     return result;
   }
 
+  private ShardHandler getAndPrepShardHandler(SolrQueryRequest req, ResponseBuilder rb) {
+    ShardHandler shardHandler = null;
+
+    rb.isDistrib = req.getParams().getBool("distrib", req.getCore().getCoreDescriptor()
+        .getCoreContainer().isZooKeeperAware());
+    if (!rb.isDistrib) {
+      // for back compat, a shards param with URLs like localhost:8983/solr will mean that this
+      // search is distributed.
+      final String shards = req.getParams().get(ShardParams.SHARDS);
+      rb.isDistrib = ((shards != null) && (shards.indexOf('/') > 0));
+    }
+    
+    if (rb.isDistrib) {
+      shardHandler = shardHandlerFactory.getShardHandler();
+      shardHandler.prepDistributed(rb);
+      if (!rb.isDistrib) {
+        shardHandler = null; // request is not distributed after all and so the shard handler is not needed
+      }
+    }
+
+    return shardHandler;
+  }
+  
   @Override
   public void handleRequestBody(SolrQueryRequest req, SolrQueryResponse rsp) throws Exception
   {
@@ -218,11 +240,10 @@ public class SearchHandler extends RequestHandlerBase implements SolrCoreAware ,
       SolrPluginUtils.getDebugInterests(req.getParams().getParams(CommonParams.DEBUG), rb);
     }
 
-    final RTimer timer = rb.isDebug() ? req.getRequestTimer() : null;
+    final RTimerTree timer = rb.isDebug() ? req.getRequestTimer() : null;
 
-    ShardHandler shardHandler1 = shardHandlerFactory.getShardHandler();
-    shardHandler1.checkDistributed(rb);
-
+    final ShardHandler shardHandler1 = getAndPrepShardHandler(req, rb); // creates a ShardHandler object only if it's needed
+    
     if (timer == null) {
       // non-debugging prepare phase
       for( SearchComponent c : components ) {
@@ -230,7 +251,7 @@ public class SearchHandler extends RequestHandlerBase implements SolrCoreAware ,
       }
     } else {
       // debugging prepare phase
-      RTimer subt = timer.sub( "prepare" );
+      RTimerTree subt = timer.sub( "prepare" );
       for( SearchComponent c : components ) {
         rb.setTimer( subt.sub( c.getName() ) );
         c.prepare(rb);
@@ -257,7 +278,7 @@ public class SearchHandler extends RequestHandlerBase implements SolrCoreAware ,
         }
         else {
           // Process
-          RTimer subt = timer.sub( "process" );
+          RTimerTree subt = timer.sub( "process" );
           for( SearchComponent c : components ) {
             rb.setTimer( subt.sub( c.getName() ) );
             c.process(rb);
@@ -316,7 +337,7 @@ public class SearchHandler extends RequestHandlerBase implements SolrCoreAware ,
             if (sreq.actualShards==ShardRequest.ALL_SHARDS) {
               sreq.actualShards = rb.shards;
             }
-            sreq.responses = new ArrayList<>();
+            sreq.responses = new ArrayList<>(sreq.actualShards.length); // presume we'll get a response from each shard we send to
 
             // TODO: map from shard to address[]
             for (String shard : sreq.actualShards) {

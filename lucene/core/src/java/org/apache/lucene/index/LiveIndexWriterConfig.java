@@ -24,6 +24,7 @@ import org.apache.lucene.index.IndexWriter.IndexReaderWarmer;
 import org.apache.lucene.index.IndexWriterConfig.OpenMode;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.similarities.Similarity;
+import org.apache.lucene.store.SleepingLockWrapper;
 import org.apache.lucene.util.InfoStream;
 
 /**
@@ -60,7 +61,11 @@ public class LiveIndexWriterConfig {
   /** {@link MergeScheduler} to use for running merges. */
   protected volatile MergeScheduler mergeScheduler;
 
-  /** Timeout when trying to obtain the write lock on init. */
+  /** 
+   * Timeout when trying to obtain the write lock on init. 
+   * @deprecated Use {@link SleepingLockWrapper} if you want sleeping.
+   */
+  @Deprecated
   protected volatile long writeLockTimeout;
 
   /** {@link IndexingChain} that determines how documents are
@@ -120,7 +125,7 @@ public class LiveIndexWriterConfig {
     mergePolicy = new TieredMergePolicy();
     flushPolicy = new FlushByRamOrCountsPolicy();
     readerPooling = IndexWriterConfig.DEFAULT_READER_POOLING;
-    indexerThreadPool = new DocumentsWriterPerThreadPool(IndexWriterConfig.DEFAULT_MAX_THREAD_STATES);
+    indexerThreadPool = new DocumentsWriterPerThreadPool();
     perThreadHardLimitMB = IndexWriterConfig.DEFAULT_RAM_PER_THREAD_HARD_LIMIT_MB;
   }
   
@@ -355,7 +360,9 @@ public class LiveIndexWriterConfig {
    * Returns allowed timeout when acquiring the write lock.
    *
    * @see IndexWriterConfig#setWriteLockTimeout(long)
+   * @deprecated Use {@link SleepingLockWrapper} if you want sleeping.
    */
+  @Deprecated
   public long getWriteLockTimeout() {
     return writeLockTimeout;
   }
@@ -385,14 +392,6 @@ public class LiveIndexWriterConfig {
   }
 
   /**
-   * Returns the max number of simultaneous threads that may be indexing
-   * documents at once in IndexWriter.
-   */
-  public int getMaxThreadStates() {
-    return indexerThreadPool.getMaxThreadStates();
-  }
-
-  /**
    * Returns {@code true} if {@link IndexWriter} should pool readers even if
    * {@link DirectoryReader#open(IndexWriter, boolean)} has not been called.
    */
@@ -401,8 +400,7 @@ public class LiveIndexWriterConfig {
   }
 
   /**
-   * Returns the indexing chain set on
-   * {@link IndexWriterConfig#setIndexingChain(IndexingChain)}.
+   * Returns the indexing chain.
    */
   IndexingChain getIndexingChain() {
     return indexingChain;

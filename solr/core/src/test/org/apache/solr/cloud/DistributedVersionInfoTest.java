@@ -88,6 +88,11 @@ public class DistributedVersionInfoTest extends AbstractFullDistribZkTestBase {
     List<Replica> notLeaders =
         ensureAllReplicasAreActive(testCollectionName, shardId, 1, rf, maxWaitSecsToSeeAllActive);
 
+    // start by reloading the empty collection so we try to calculate the max from an empty index
+    reloadCollection(leader, testCollectionName);
+    notLeaders =
+        ensureAllReplicasAreActive(testCollectionName, shardId, 1, rf, maxWaitSecsToSeeAllActive);
+
     sendDoc(1);
     cloudClient.commit();
 
@@ -234,7 +239,7 @@ public class DistributedVersionInfoTest extends AbstractFullDistribZkTestBase {
 
     cloudClient.commit();
 
-    log.info("\n\n\n Total of "+deletedDocs.size()+" docs deleted \n\n\n");
+    log.info("Total of "+deletedDocs.size()+" docs deleted");
 
     maxOnLeader = getMaxVersionFromIndex(leader);
     maxOnReplica = getMaxVersionFromIndex(replica);

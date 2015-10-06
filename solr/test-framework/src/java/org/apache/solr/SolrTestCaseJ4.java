@@ -78,6 +78,7 @@ import org.apache.solr.common.params.CommonParams;
 import org.apache.solr.common.params.ModifiableSolrParams;
 import org.apache.solr.common.params.SolrParams;
 import org.apache.solr.common.util.ObjectReleaseTracker;
+import org.apache.solr.common.util.SuppressForbidden;
 import org.apache.solr.common.util.XML;
 import org.apache.solr.core.CoreContainer;
 import org.apache.solr.core.CoreDescriptor;
@@ -93,10 +94,10 @@ import org.apache.solr.request.SolrQueryRequest;
 import org.apache.solr.request.SolrRequestHandler;
 import org.apache.solr.schema.IndexSchema;
 import org.apache.solr.schema.SchemaField;
-import org.apache.solr.schema.TrieDateField;
 import org.apache.solr.search.SolrIndexSearcher;
 import org.apache.solr.servlet.DirectSolrConnection;
 import org.apache.solr.util.AbstractSolrTestCase;
+import org.apache.solr.util.DateFormatUtil;
 import org.apache.solr.util.RevertDefaultThreadHandlerRule;
 import org.apache.solr.util.SSLTestConfig;
 import org.apache.solr.util.TestHarness;
@@ -370,13 +371,6 @@ public abstract class SolrTestCaseJ4 extends LuceneTestCase {
       mergeSchedulerClass = "org.apache.lucene.index.ConcurrentMergeScheduler";
     }
     System.setProperty("solr.tests.mergeScheduler", mergeSchedulerClass);
-
-    // don't ask iwc.getMaxThreadStates(), sometimes newIWC uses 
-    // RandomDocumentsWriterPerThreadPool and all hell breaks loose
-    int maxIndexingThreads = rarely(random())
-      ? TestUtil.nextInt(random(), 5, 20) // crazy value
-      : TestUtil.nextInt(random(), 1, 4); // reasonable value
-    System.setProperty("solr.tests.maxIndexingThreads", String.valueOf(maxIndexingThreads));
   }
 
   public static Throwable getWrappedException(Throwable e) {
@@ -398,6 +392,7 @@ public abstract class SolrTestCaseJ4 extends LuceneTestCase {
     super.tearDown();
   }
 
+  @SuppressForbidden(reason = "method is specific to java.util.logging and highly suspect!")
   public static void setLoggingLevel(Level level) {
     java.util.logging.Logger logger = java.util.logging.Logger.getLogger("");
     logger.setLevel(level);
@@ -2094,7 +2089,7 @@ public abstract class SolrTestCaseJ4 extends LuceneTestCase {
    * @see #randomSkewedDate
    */
   public static String randomDate() {
-    return TrieDateField.formatExternal(new Date(random().nextLong()));
+    return DateFormatUtil.formatExternal(new Date(random().nextLong()));
   }
 
   /** 

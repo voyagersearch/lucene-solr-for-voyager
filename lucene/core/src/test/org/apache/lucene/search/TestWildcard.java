@@ -70,22 +70,16 @@ public class TestWildcard extends LuceneTestCase {
       assertMatches(searcher, wq, 1);
 
       wq.setRewriteMethod(MultiTermQuery.SCORING_BOOLEAN_REWRITE);
-      wq.setBoost(0.1F);
       Query q = searcher.rewrite(wq);
       assertTrue(q instanceof TermQuery);
-      assertEquals(q.getBoost(), wq.getBoost(), 0);
       
       wq.setRewriteMethod(MultiTermQuery.CONSTANT_SCORE_REWRITE);
-      wq.setBoost(0.2F);
       q = searcher.rewrite(wq);
       assertTrue(q instanceof MultiTermQueryConstantScoreWrapper);
-      assertEquals(q.getBoost(), wq.getBoost(), 0.1);
       
       wq.setRewriteMethod(MultiTermQuery.CONSTANT_SCORE_BOOLEAN_REWRITE);
-      wq.setBoost(0.4F);
       q = searcher.rewrite(wq);
       assertTrue(q instanceof ConstantScoreQuery);
-      assertEquals(q.getBoost(), wq.getBoost(), 0.1);
       reader.close();
       indexStore.close();
   }
@@ -144,10 +138,10 @@ public class TestWildcard extends LuceneTestCase {
     Query query4 = new WildcardQuery(new Term("body", "m*tal*"));
     Query query5 = new WildcardQuery(new Term("body", "m*tals"));
 
-    BooleanQuery query6 = new BooleanQuery();
+    BooleanQuery.Builder query6 = new BooleanQuery.Builder();
     query6.add(query5, BooleanClause.Occur.SHOULD);
 
-    BooleanQuery query7 = new BooleanQuery();
+    BooleanQuery.Builder query7 = new BooleanQuery.Builder();
     query7.add(query3, BooleanClause.Occur.SHOULD);
     query7.add(query5, BooleanClause.Occur.SHOULD);
 
@@ -159,8 +153,8 @@ public class TestWildcard extends LuceneTestCase {
     assertMatches(searcher, query3, 1);
     assertMatches(searcher, query4, 2);
     assertMatches(searcher, query5, 1);
-    assertMatches(searcher, query6, 1);
-    assertMatches(searcher, query7, 2);
+    assertMatches(searcher, query6.build(), 1);
+    assertMatches(searcher, query7.build(), 2);
     assertMatches(searcher, query8, 0);
     assertMatches(searcher, new WildcardQuery(new Term("body", "*tall")), 0);
     assertMatches(searcher, new WildcardQuery(new Term("body", "*tal")), 1);

@@ -18,30 +18,25 @@ package org.apache.lucene.search;
  */
 
 import java.io.IOException;
-import java.util.Set;
 
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.Term;
-import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.ToStringUtils;
 
 /**
  * A query that matches no documents.
  */
 public class MatchNoDocsQuery extends Query {
 
-    @Override
-    public Query rewrite(IndexReader reader) throws IOException {
-        // Rewrite to an empty BooleanQuery so no Scorer or Weight is required
-        return new BooleanQuery();
+  @Override
+  public Query rewrite(IndexReader reader) throws IOException {
+    if (getBoost() != 1f) {
+      return super.rewrite(reader);
     }
-
-    @Override
-    public String toString(String field) {
-        StringBuilder buffer = new StringBuilder();
-        buffer.append("_none_");
-        buffer.append(ToStringUtils.boost(getBoost()));
-        return buffer.toString();
-    }
+    // Rewrite to an empty BooleanQuery so no Scorer or Weight is required
+    return new BooleanQuery.Builder().build();
+  }
+  
+  @Override
+  public String toString(String field) {
+    return "";
+  }
 }

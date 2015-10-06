@@ -24,8 +24,8 @@ var DOC_PLACEHOLDER = '<doc>\n' +
 var ADD_PLACEHOLDER = '<add>\n' + DOC_PLACEHOLDER + '</add>\n';
 
 solrAdminApp.controller('DocumentsController',
-    function($scope, $rootScope, $routeParams, $location, Luke, Update, FileUpload) {
-        $scope.resetMenu("documents");
+    function($scope, $rootScope, $routeParams, $location, Luke, Update, FileUpload, Constants) {
+        $scope.resetMenu("documents", Constants.IS_COLLECTION_PAGE);
 
         $scope.refresh = function () {
             Luke.schema({core: $routeParams.core}, function(data) {
@@ -85,35 +85,43 @@ solrAdminApp.controller('DocumentsController',
 
             if ($scope.type == "json" || $scope.type == "wizard") {
                 postData = "[" + $scope.document + "]";
-                contentType = "application/json";
+                contentType = "json";
             } else if ($scope.type == "csv") {
                 postData = $scope.document;
-                contentType = "application/csv";
+                contentType = "csv";
             } else if ($scope.type == "xml") {
                 postData = "<add>" + $scope.document + "</add>";
-                contentType = "text/xml";
+                contentType = "xml";
             } else if ($scope.type == "upload") {
                 doingFileUpload = true;
                 params.raw = $scope.literalParams;
             } else if ($scope.type == "solr") {
                 postData = $scope.document;
                 if (postData[0] == "<") {
-                    contentType = "text/xml";
-                } else if (postData[0] == "{") {
-                    contentType = "application/json";
+                    contentType = "xml";
+                } else if (postData[0] == "{" || postData[0] == '[') {
+                    contentType = "json";
                 } else {
                     alert("Cannot identify content type")
                 }
             }
             if (!doingFileUpload) {
-                Update.post(params, postData).then(function (success) {
-                    $scope.responseStatus = "success";
-                    delete success.$promise;
-                    delete success.$resolved;
-                    $scope.response = JSON.stringify(success, null, '  ');
-                }).fail(function (failure) {
+                var callback = function (success) {
+                  $scope.responseStatus = "success";
+                  delete success.$promise;
+                  delete success.$resolved;
+                  $scope.response = JSON.stringify(success, null, '  ');
+                };
+                var failure = function (failure) {
                     $scope.responseStatus = failure;
-                });
+                };
+                if (contentType == "json") {
+                  Update.postJson(params, postData, callback, failure);
+                } else if (contentType == "xml") {
+                  Update.postXml(params, postData, callback, failure);
+                } else if (contentType == "csv") {
+                  Update.postCsv(params, postData, callback, failure);
+                }
             } else {
                 var file = $scope.fileUpload;
                 console.log('file is ' + JSON.stringify(file));

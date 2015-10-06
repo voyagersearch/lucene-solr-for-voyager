@@ -18,8 +18,8 @@
 var cookie_schema_browser_autoload = 'schema-browser_autoload';
 
 solrAdminApp.controller('SchemaBrowserController',
-    function($scope, $routeParams, $location, $cookies, Luke) {
-        $scope.resetMenu("schema-browser");
+    function($scope, $routeParams, $location, $cookies, Luke, Constants) {
+        $scope.resetMenu("schema-browser", Constants.IS_COLLECTION_PAGE);
 
         $scope.refresh = function () {
             Luke.schema({core: $routeParams.core}, function (schema) {
@@ -125,25 +125,28 @@ solrAdminApp.controller('SchemaBrowserController',
 
 var getFieldsAndTypes = function(data) {
     var fieldsAndTypes = [];
-    for (var field in data.fields) {
+    var fields = Object.keys(data.fields).sort();
+    for (var i in fields) {
         fieldsAndTypes.push({
             group: "Fields",
-            value: "field=" + field,
-            label: field
+            value: "field=" + fields[i],
+            label: fields[i]
         });
     }
-    for (var field in data.dynamic_fields) {
+    var dynamic_fields = Object.keys(data.dynamic_fields).sort();
+    for (var i in dynamic_fields) {
         fieldsAndTypes.push({
             group: "Dynamic Fields",
-            value: "dynamic-field=" + field,
-            label: field
+            value: "dynamic-field=" + dynamic_fields[i],
+            label: dynamic_fields[i]
         });
     }
-    for (var type in data.types) {
+    var types = Object.keys(data.types).sort();
+    for (var i in types) {
         fieldsAndTypes.push({
             group: "Types",
-            value: "type=" + type,
-            label: type
+            value: "type=" + types[i],
+            label: types[i]
         });
     }
     return fieldsAndTypes;

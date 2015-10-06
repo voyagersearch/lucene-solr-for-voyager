@@ -17,6 +17,7 @@ package org.apache.solr.cloud;
  */
 
 import com.carrotsearch.randomizedtesting.rules.SystemPropertiesRestoreRule;
+
 import org.apache.commons.io.FileUtils;
 import org.apache.solr.SolrTestCaseJ4;
 import org.apache.solr.common.SolrException;
@@ -25,15 +26,12 @@ import org.apache.solr.common.cloud.ZkStateReader;
 import org.apache.solr.core.NodeConfig;
 import org.apache.solr.servlet.SolrDispatchFilter;
 import org.junit.After;
-import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
 import java.io.File;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 import java.util.Properties;
 
@@ -52,20 +50,6 @@ public class SolrXmlInZkTest extends SolrTestCaseJ4 {
 
   private NodeConfig cfg;
 
-  private SolrDispatchFilter solrDispatchFilter;
-
-  @Before
-  public void before() {
-    System.setProperty("solr.solrxml.location", "zookeeper");
-  }
-  
-  @After
-  public void after() {
-    if (solrDispatchFilter != null) {
-      solrDispatchFilter.destroy();
-    }
-  }
-
   private void setUpZkAndDiskXml(boolean toZk, boolean leaveOnLocal) throws Exception {
     File tmpDir = createTempDir().toFile();
     File solrHome = new File(tmpDir, "home");
@@ -80,7 +64,7 @@ public class SolrXmlInZkTest extends SolrTestCaseJ4 {
     System.setProperty("zkClientTimeout", "8000");
 
     zkDir = tmpDir.getAbsolutePath() + File.separator
-        + "zookeeper" + System.currentTimeMillis() + "/server1/data";
+        + "zookeeper" + System.nanoTime() + "/server1/data";
     zkServer = new ZkTestServer(zkDir);
     zkServer.run();
     System.setProperty("zkHost", zkServer.getZkAddress());
@@ -102,13 +86,7 @@ public class SolrXmlInZkTest extends SolrTestCaseJ4 {
     props.setProperty("solr.test.sys.prop1", "propone");
     props.setProperty("solr.test.sys.prop2", "proptwo");
 
-    Method method = SolrDispatchFilter.class.getDeclaredMethod("loadNodeConfig", String.class, Properties.class);
-    method.setAccessible(true);
-    if (solrDispatchFilter != null) solrDispatchFilter.destroy();
-    solrDispatchFilter = new SolrDispatchFilter();
-    Object obj = method.invoke(solrDispatchFilter, solrHome.getAbsolutePath(), props);
-    cfg = (NodeConfig) obj;
-
+    cfg = SolrDispatchFilter.loadNodeConfig(solrHome.getAbsolutePath(), props);
     log.info("####SETUP_END " + getTestName());
   }
 
@@ -146,13 +124,11 @@ public class SolrXmlInZkTest extends SolrTestCaseJ4 {
   }
 
   @Test
-  public void testNotInZkAndShouldBe() throws Exception {
+  public void testNotInZkFallbackLocal() throws Exception {
     try {
       setUpZkAndDiskXml(false, true);
-      fail("Should have gotten an exception here!");
-    } catch (InvocationTargetException ite) {
-      assertEquals("Should have an exception here, file not in ZK.",
-          "Could not load solr.xml from zookeeper", ite.getTargetException().getMessage());
+      assertEquals("Should have gotten the default port",
+          cfg.getCloudConfig().getSolrHostPort(), 8983);
     } finally {
       closeZK();
     }
@@ -161,13 +137,12 @@ public class SolrXmlInZkTest extends SolrTestCaseJ4 {
   @Test
   public void testNotInZkOrOnDisk() throws Exception {
     try {
-      System.clearProperty("solr.solrxml.location");
       System.setProperty("hostPort", "8787");
       setUpZkAndDiskXml(false, false); // solr.xml not on disk either
       fail("Should have thrown an exception here");
-    } catch (InvocationTargetException ite) {
+    } catch (SolrException solre) {
       assertTrue("Should be failing to create default solr.xml in code",
-          ite.getCause().getMessage().contains("solr.xml does not exist"));
+          solre.getMessage().contains("solr.xml does not exist"));
     } finally {
       closeZK();
     }
@@ -176,47 +151,10 @@ public class SolrXmlInZkTest extends SolrTestCaseJ4 {
   @Test
   public void testOnDiskOnly() throws Exception {
     try {
-      System.clearProperty("solr.solrxml.location");
       setUpZkAndDiskXml(false, true);
       assertEquals("Should have gotten the default port", cfg.getCloudConfig().getSolrHostPort(), 8983);
     } finally {
       closeZK();
-    }
-  }
-
-  @Test
-  public void testBadSysProp() throws Exception {
-    try {
-      System.setProperty("solr.solrxml.location", "solrHomeDir");
-      setUpZkAndDiskXml(false, true);
-      fail("Should have thrown exception in SolrXmlInZkTest.testBadSysProp");
-    } catch (InvocationTargetException ite) {
-      assertEquals("Should have an exception in SolrXmlInZkTest.testBadSysProp, sysprop set to bogus value.",
-          ite.getTargetException().getMessage(), "Bad solr.solrxml.location set: solrHomeDir - should be 'solrhome' or 'zookeeper'");
-    } finally {
-      closeZK();
-    }
-
-  }
-
-  //SolrDispatchFilter.protected static ConfigSolr loadConfigSolr(SolrResourceLoader loader) {
-  @Test
-  public void testZkHostDiscovery() throws ClassNotFoundException, NoSuchMethodException,
-      IllegalAccessException, InstantiationException, InvocationTargetException {
-
-    // Should see an error when zkHost is not defined but solr.solrxml.location is set to zookeeper.
-    System.clearProperty("zkHost");
-    try {
-      Method method = SolrDispatchFilter.class.getDeclaredMethod("loadNodeConfig", String.class, Properties.class);
-      method.setAccessible(true);
-      if (solrDispatchFilter != null) solrDispatchFilter.destroy();
-      solrDispatchFilter = new SolrDispatchFilter();
-      method.invoke(solrDispatchFilter, "", new Properties());
-      fail("Should have thrown an exception");
-    } catch (InvocationTargetException ite) {
-      assertTrue("Should be catching a SolrException", ite.getTargetException() instanceof SolrException);
-      assertEquals("Caught Solr exception", ite.getTargetException().getMessage(),
-          "Could not load solr.xml from zookeeper: zkHost system property not set");
     }
   }
 

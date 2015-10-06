@@ -1,6 +1,6 @@
 package org.apache.lucene.uninverting;
 
-/**
+/*
  * Copyright 2004 The Apache Software Foundation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -119,6 +119,7 @@ public class TestFieldCache extends LuceneTestCase {
     }
     IndexReader r = writer.getReader();
     reader = SlowCompositeReaderWrapper.wrap(r);
+    TestUtil.checkReader(reader);
     writer.close();
   }
 
@@ -293,6 +294,7 @@ public class TestFieldCache extends LuceneTestCase {
     writer.close();
     IndexReader r = DirectoryReader.open(dir);
     LeafReader reader = SlowCompositeReaderWrapper.wrap(r);
+    TestUtil.checkReader(reader);
     FieldCache.DEFAULT.getTerms(reader, "foobar", true);
     FieldCache.DEFAULT.getTermsIndex(reader, "foobar");
     FieldCache.DEFAULT.purgeByCacheKey(reader.getCoreCacheKey());

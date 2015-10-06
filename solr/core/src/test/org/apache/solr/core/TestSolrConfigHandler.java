@@ -35,6 +35,7 @@ import org.apache.commons.io.FileUtils;
 import org.apache.solr.SolrTestCaseJ4;
 import org.apache.solr.client.solrj.impl.CloudSolrClient;
 import org.apache.solr.common.util.StrUtils;
+import org.apache.solr.common.util.Utils;
 import org.apache.solr.handler.TestBlobHandler;
 import org.apache.solr.handler.TestSolrConfigHandlerConcurrent;
 import org.apache.solr.util.RestTestBase;
@@ -48,7 +49,7 @@ import org.restlet.ext.servlet.ServerServlet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static org.apache.solr.core.ConfigOverlay.getObjectByPath;
+import static org.apache.solr.common.util.Utils.getObjectByPath;
 import static org.apache.solr.handler.TestBlobHandler.getAsString;
 
 public class TestSolrConfigHandler extends RestTestBase {
@@ -173,7 +174,7 @@ public class TestSolrConfigHandler extends RestTestBase {
   }
 
 
-  public static void reqhandlertests(RestTestHarness writeHarness, String testServerBaseUrl, CloudSolrClient cloudSolrServer) throws Exception {
+  public static void reqhandlertests(RestTestHarness writeHarness, String testServerBaseUrl, CloudSolrClient cloudSolrClient) throws Exception {
     String payload = "{\n" +
         "'create-requesthandler' : { 'name' : '/x', 'class': 'org.apache.solr.handler.DumpRequestHandler' , 'startup' : 'lazy'}\n" +
         "}";
@@ -182,20 +183,20 @@ public class TestSolrConfigHandler extends RestTestBase {
     testForResponseElement(writeHarness,
         testServerBaseUrl,
         "/config/overlay?wt=json",
-        cloudSolrServer,
+        cloudSolrClient,
         Arrays.asList("overlay", "requestHandler", "/x", "startup"),
         "lazy",
         10);
 
     payload = "{\n" +
-        "'update-requesthandler' : { 'name' : '/x', 'class': 'org.apache.solr.handler.DumpRequestHandler' , 'startup' : 'lazy' , 'a':'b' , 'defaults': {'def_a':'def A val'}}\n" +
+        "'update-requesthandler' : { 'name' : '/x', 'class': 'org.apache.solr.handler.DumpRequestHandler' , 'startup' : 'lazy' , 'a':'b' , 'defaults': {'def_a':'def A val', 'multival':['a','b','c']}}\n" +
         "}";
     runConfigCommand(writeHarness, "/config?wt=json", payload);
 
     testForResponseElement(writeHarness,
         testServerBaseUrl,
         "/config/overlay?wt=json",
-        cloudSolrServer,
+        cloudSolrClient,
         Arrays.asList("overlay", "requestHandler", "/x", "a"),
         "b",
         10);
@@ -203,9 +204,17 @@ public class TestSolrConfigHandler extends RestTestBase {
     testForResponseElement(writeHarness,
         testServerBaseUrl,
         "/x?wt=json&getdefaults=true&json.nl=map",
-        cloudSolrServer,
+        cloudSolrClient,
         Arrays.asList("getdefaults", "def_a"),
         "def A val",
+        10);
+
+    testForResponseElement(writeHarness,
+        testServerBaseUrl,
+        "/x?wt=json&param=multival&json.nl=map",
+        cloudSolrClient,
+        Arrays.asList("params", "multival"),
+        Arrays.asList("a", "b", "c"),
         10);
 
     payload = "{\n" +
@@ -217,8 +226,8 @@ public class TestSolrConfigHandler extends RestTestBase {
     int maxTimeoutSeconds = 10;
     while (TimeUnit.SECONDS.convert(System.nanoTime() - startTime, TimeUnit.NANOSECONDS) < maxTimeoutSeconds) {
       String uri = "/config/overlay?wt=json";
-      Map m = testServerBaseUrl == null ? getRespMap(uri, writeHarness) : TestSolrConfigHandlerConcurrent.getAsMap(testServerBaseUrl + uri, cloudSolrServer);
-      if (null == ConfigOverlay.getObjectByPath(m, true, Arrays.asList("overlay", "requestHandler", "/x", "a"))) {
+      Map m = testServerBaseUrl == null ? getRespMap(uri, writeHarness) : TestSolrConfigHandlerConcurrent.getAsMap(testServerBaseUrl + uri, cloudSolrClient);
+      if (null == Utils.getObjectByPath(m, true, Arrays.asList("overlay", "requestHandler", "/x", "a"))) {
         success = true;
         break;
       }
@@ -234,7 +243,7 @@ public class TestSolrConfigHandler extends RestTestBase {
     testForResponseElement(writeHarness,
         testServerBaseUrl,
         "/config?wt=json",
-        cloudSolrServer,
+        cloudSolrClient,
         Arrays.asList("config", "queryConverter", "qc", "class"),
         "org.apache.solr.spelling.SpellingQueryConverter",
         10);
@@ -245,7 +254,7 @@ public class TestSolrConfigHandler extends RestTestBase {
     testForResponseElement(writeHarness,
         testServerBaseUrl,
         "/config?wt=json",
-        cloudSolrServer,
+        cloudSolrClient,
         Arrays.asList("config", "queryConverter", "qc", "class"),
         "org.apache.solr.spelling.SuggestQueryConverter",
         10);
@@ -257,7 +266,7 @@ public class TestSolrConfigHandler extends RestTestBase {
     testForResponseElement(writeHarness,
         testServerBaseUrl,
         "/config?wt=json",
-        cloudSolrServer,
+        cloudSolrClient,
         Arrays.asList("config", "queryConverter", "qc"),
         null,
         10);
@@ -269,7 +278,7 @@ public class TestSolrConfigHandler extends RestTestBase {
     testForResponseElement(writeHarness,
         testServerBaseUrl,
         "/config?wt=json",
-        cloudSolrServer,
+        cloudSolrClient,
         Arrays.asList("config", "searchComponent", "tc", "class"),
         "org.apache.solr.handler.component.TermsComponent",
         10);
@@ -280,7 +289,7 @@ public class TestSolrConfigHandler extends RestTestBase {
     testForResponseElement(writeHarness,
         testServerBaseUrl,
         "/config?wt=json",
-        cloudSolrServer,
+        cloudSolrClient,
         Arrays.asList("config", "searchComponent", "tc", "class"),
         "org.apache.solr.handler.component.TermVectorComponent",
         10);
@@ -292,7 +301,7 @@ public class TestSolrConfigHandler extends RestTestBase {
     testForResponseElement(writeHarness,
         testServerBaseUrl,
         "/config?wt=json",
-        cloudSolrServer,
+        cloudSolrClient,
         Arrays.asList("config", "searchComponent", "tc"),
         null,
         10);
@@ -304,7 +313,7 @@ public class TestSolrConfigHandler extends RestTestBase {
     testForResponseElement(writeHarness,
         testServerBaseUrl,
         "/config?wt=json",
-        cloudSolrServer,
+        cloudSolrClient,
         Arrays.asList("config", "valueSourceParser", "cu", "class"),
         "org.apache.solr.core.CountUsageValueSourceParser",
         10);
@@ -318,7 +327,7 @@ public class TestSolrConfigHandler extends RestTestBase {
     testForResponseElement(writeHarness,
         testServerBaseUrl,
         "/config?wt=json",
-        cloudSolrServer,
+        cloudSolrClient,
         Arrays.asList("config", "valueSourceParser", "cu", "class"),
         "org.apache.solr.search.function.NvlValueSourceParser",
         10);
@@ -330,7 +339,7 @@ public class TestSolrConfigHandler extends RestTestBase {
     testForResponseElement(writeHarness,
         testServerBaseUrl,
         "/config?wt=json",
-        cloudSolrServer,
+        cloudSolrClient,
         Arrays.asList("config", "valueSourceParser", "cu"),
         null,
         10);
@@ -344,7 +353,7 @@ public class TestSolrConfigHandler extends RestTestBase {
     testForResponseElement(writeHarness,
         testServerBaseUrl,
         "/config?wt=json",
-        cloudSolrServer,
+        cloudSolrClient,
         Arrays.asList("config", "transformer", "mytrans", "class"),
         "org.apache.solr.response.transform.ValueAugmenterFactory",
         10);
@@ -356,7 +365,7 @@ public class TestSolrConfigHandler extends RestTestBase {
     testForResponseElement(writeHarness,
         testServerBaseUrl,
         "/config?wt=json",
-        cloudSolrServer,
+        cloudSolrClient,
         Arrays.asList("config", "transformer", "mytrans", "value"),
         "6",
         10);
@@ -369,15 +378,37 @@ public class TestSolrConfigHandler extends RestTestBase {
     Map map = testForResponseElement(writeHarness,
         testServerBaseUrl,
         "/config?wt=json",
-        cloudSolrServer,
+        cloudSolrClient,
         Arrays.asList("config", "transformer", "mytrans"),
         null,
         10);
 
-    List l = (List) ConfigOverlay.getObjectByPath(map,false, Arrays.asList("config", "initParams"));
+    List l = (List) Utils.getObjectByPath(map, false, Arrays.asList("config", "initParams"));
     assertNotNull("no object /config/initParams : "+ TestBlobHandler.getAsString(map) , l);
     assertEquals( 1, l.size());
     assertEquals( "val", ((Map)l.get(0)).get("key") );
+
+
+    payload = "{\n" +
+        "    'add-searchcomponent': {\n" +
+        "        'name': 'myspellcheck',\n" +
+        "        'class': 'solr.SpellCheckComponent',\n" +
+        "        'queryAnalyzerFieldType': 'text_general',\n" +
+        "        'spellchecker': {\n" +
+        "            'name': 'default',\n" +
+        "            'field': '_text_',\n" +
+        "            'class': 'solr.DirectSolrSpellChecker'\n" +
+        "        }\n" +
+        "    }\n" +
+        "}";
+    runConfigCommand(writeHarness, "/config?wt=json", payload);
+    map = testForResponseElement(writeHarness,
+        testServerBaseUrl,
+        "/config?wt=json",
+        cloudSolrClient,
+        Arrays.asList("config", "searchComponent","myspellcheck", "spellchecker", "class"),
+        "solr.DirectSolrSpellChecker",
+        10);
   }
 
   public static Map testForResponseElement(RestTestHarness harness,
@@ -399,7 +430,7 @@ public class TestSolrConfigHandler extends RestTestBase {
         continue;
 
       }
-      if (Objects.equals(expected, ConfigOverlay.getObjectByPath(m, false, jsonPath))) {
+      if (Objects.equals(expected, Utils.getObjectByPath(m, false, jsonPath))) {
         success = true;
         break;
       }

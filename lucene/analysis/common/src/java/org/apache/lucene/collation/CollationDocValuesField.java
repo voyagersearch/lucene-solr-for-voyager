@@ -1,6 +1,6 @@
 package org.apache.lucene.collation;
 
-/**
+/*
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.
@@ -21,7 +21,6 @@ import java.text.Collator;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedDocValuesField;
-import org.apache.lucene.search.DocValuesRangeQuery;
 import org.apache.lucene.util.BytesRef;
 
 /**
@@ -29,7 +28,7 @@ import org.apache.lucene.util.BytesRef;
  * <p>
  * This is more efficient that {@link CollationKeyAnalyzer} if the field 
  * only has one value: no uninversion is necessary to sort on the field, 
- * locale-sensitive range queries can still work via {@link DocValuesRangeQuery}, 
+ * locale-sensitive range queries can still work via {@code DocValuesRangeQuery}, 
  * and the underlying data structures built at index-time are likely more efficient 
  * and use less memory than FieldCache.
  */

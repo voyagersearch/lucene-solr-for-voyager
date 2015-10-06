@@ -66,7 +66,7 @@ public class TestJsonRequest extends SolrTestCaseHS {
   }
 
 
-  public void doJsonRequest(Client client) throws Exception {
+  public static void doJsonRequest(Client client) throws Exception {
     client.deleteByQuery("*:*", null);
     client.add(sdoc("id", "1", "cat_s", "A", "where_s", "NY"), null);
     client.add(sdoc("id", "2", "cat_s", "B", "where_s", "NJ"), null);
@@ -86,6 +86,16 @@ public class TestJsonRequest extends SolrTestCaseHS {
 
     // test multiple json params
     client.testJQ( params("json","{query:'cat_s:A'}", "json","{filter:'where_s:NY'}")
+        , "response/numFound==1"
+    );
+
+    // test multiple json params with one being zero length
+    client.testJQ( params("json","{query:'cat_s:A'}", "json","{filter:'where_s:NY'}", "json","")
+        , "response/numFound==1"
+    );
+
+    // test multiple json params with one being a comment
+    client.testJQ( params("json","{query:'cat_s:A'}", "json","{filter:'where_s:NY'}", "json","/* */")
         , "response/numFound==1"
     );
 
@@ -111,6 +121,11 @@ public class TestJsonRequest extends SolrTestCaseHS {
 
     // test inserting and merging with paths
     client.testJQ( params("json.query","'*:*'", "json.filter","'where_s:NY'", "json.filter","'cat_s:A'")
+        , "response/numFound==1"
+    );
+
+    // test inserting and merging with paths with an empty string and a comment
+    client.testJQ( params("json.query","'*:*'", "json.filter","'where_s:NY'", "json.filter","'cat_s:A'", "json.filter","", "json.filter","/* */")
         , "response/numFound==1"
     );
 

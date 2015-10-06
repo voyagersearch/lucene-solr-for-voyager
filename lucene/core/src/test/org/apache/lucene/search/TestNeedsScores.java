@@ -28,7 +28,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.LuceneTestCase;
 
@@ -62,10 +61,10 @@ public class TestNeedsScores extends LuceneTestCase {
   public void testProhibitedClause() throws Exception {
     Query required = new TermQuery(new Term("field", "this"));
     Query prohibited = new TermQuery(new Term("field", "3"));
-    BooleanQuery bq = new BooleanQuery();
+    BooleanQuery.Builder bq = new BooleanQuery.Builder();
     bq.add(new AssertNeedsScores(required, true), BooleanClause.Occur.MUST);
     bq.add(new AssertNeedsScores(prohibited, false), BooleanClause.Occur.MUST_NOT);
-    assertEquals(4, searcher.search(bq, 5).totalHits); // we exclude 3
+    assertEquals(4, searcher.search(bq.build(), 5).totalHits); // we exclude 3
   }
   
   /** nested inside constant score query */
@@ -133,9 +132,9 @@ public class TestNeedsScores extends LuceneTestCase {
         }
 
         @Override
-        public Scorer scorer(LeafReaderContext context, Bits acceptDocs) throws IOException {
+        public Scorer scorer(LeafReaderContext context) throws IOException {
           assertEquals("query=" + in, value, needsScores);
-          return w.scorer(context, acceptDocs);
+          return w.scorer(context);
         }
       };
     }
@@ -144,7 +143,7 @@ public class TestNeedsScores extends LuceneTestCase {
     public Query rewrite(IndexReader reader) throws IOException {
       Query in2 = in.rewrite(reader);
       if (in2 == in) {
-        return this;
+        return super.rewrite(reader);
       } else {
         return new AssertNeedsScores(in2, value);
       }

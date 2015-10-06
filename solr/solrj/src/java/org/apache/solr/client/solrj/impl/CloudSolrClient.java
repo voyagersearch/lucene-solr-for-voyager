@@ -17,6 +17,29 @@ package org.apache.solr.client.solrj.impl;
  * limitations under the License.
  */
 
+import java.io.IOException;
+import java.net.ConnectException;
+import java.net.SocketException;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
+import java.util.Set;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+
 import org.apache.http.NoHttpResponseException;
 import org.apache.http.client.HttpClient;
 import org.apache.http.conn.ConnectTimeoutException;
@@ -56,28 +79,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 
-import java.io.IOException;
-import java.net.ConnectException;
-import java.net.SocketException;
-import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Random;
-import java.util.Set;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
+import static org.apache.solr.common.params.CommonParams.AUTHC_PATH;
+import static org.apache.solr.common.params.CommonParams.AUTHZ_PATH;
+import static org.apache.solr.common.params.CommonParams.COLLECTIONS_HANDLER_PATH;
+import static org.apache.solr.common.params.CommonParams.CONFIGSETS_HANDLER_PATH;
+import static org.apache.solr.common.params.CommonParams.CORES_HANDLER_PATH;
 
 /**
  * SolrJ client class to communicate with SolrCloud.
@@ -155,11 +161,12 @@ public class CloudSolrClient extends SolrClient {
 
     ExpiringCachedDocCollection(DocCollection cached) {
       this.cached = cached;
-      this.cachedAt = System.currentTimeMillis();
+      this.cachedAt = System.nanoTime();
     }
 
-    boolean isExpired(long timeToLive) {
-      return (System.currentTimeMillis() - cachedAt) > timeToLive;
+    boolean isExpired(long timeToLiveMs) {
+      return (System.nanoTime() - cachedAt)
+          > TimeUnit.NANOSECONDS.convert(timeToLiveMs, TimeUnit.MILLISECONDS);
     }
   }
 
@@ -676,7 +683,7 @@ public class CloudSolrClient extends SolrClient {
 
     long end = System.nanoTime();
 
-    RouteResponse rr =  condenseResponse(shardResponses, (long)((end - start)/1000000));
+    RouteResponse rr = condenseResponse(shardResponses, (int) TimeUnit.MILLISECONDS.convert(end - start, TimeUnit.NANOSECONDS));
     rr.setRouteResponses(shardResponses);
     rr.setRoutes(routes);
     return rr;
@@ -714,7 +721,7 @@ public class CloudSolrClient extends SolrClient {
     return urlMap;
   }
 
-  public RouteResponse condenseResponse(NamedList response, long timeMillis) {
+  public RouteResponse condenseResponse(NamedList response, int timeMillis) {
     RouteResponse condensed = new RouteResponse();
     int status = 0;
     Integer rf = null;
@@ -798,6 +805,12 @@ public class CloudSolrClient extends SolrClient {
       collection = (reqParams != null) ? reqParams.get("collection", getDefaultCollection()) : getDefaultCollection();
     return requestWithRetryOnStaleState(request, 0, collection);
   }
+  private static final Set<String> ADMIN_PATHS = new HashSet<>(Arrays.asList(
+      CORES_HANDLER_PATH,
+      COLLECTIONS_HANDLER_PATH,
+      CONFIGSETS_HANDLER_PATH,
+      AUTHC_PATH,
+      AUTHZ_PATH));
 
   /**
    * As this class doesn't watch external collections on the client side,
@@ -815,7 +828,8 @@ public class CloudSolrClient extends SolrClient {
     // collections is stale and needs to be refreshed ... this code has no impact on internal collections
     String stateVerParam = null;
     List<DocCollection> requestedCollections = null;
-    if (collection != null && !request.getPath().startsWith("/admin")) { // don't do _stateVer_ checking for admin requests
+    boolean isAdmin = ADMIN_PATHS.contains(request.getPath());
+    if (collection != null &&  !isAdmin) { // don't do _stateVer_ checking for admin requests
       Set<String> requestedCollectionNames = getCollectionNames(getZkStateReader().getClusterState(), collection);
 
       StringBuilder stateVerParamBuilder = null;
@@ -870,7 +884,7 @@ public class CloudSolrClient extends SolrClient {
 
       Throwable rootCause = SolrException.getRootCause(exc);
       // don't do retry support for admin requests or if the request doesn't have a collection specified
-      if (collection == null || request.getPath().startsWith("/admin")) {
+      if (collection == null || isAdmin) {
         if (exc instanceof SolrServerException) {
           throw (SolrServerException)exc;
         } else if (exc instanceof IOException) {
@@ -978,8 +992,7 @@ public class CloudSolrClient extends SolrClient {
       reqParams = new ModifiableSolrParams();
     }
     List<String> theUrlList = new ArrayList<>();
-    if (request.getPath().equals("/admin/collections")
-        || request.getPath().equals("/admin/cores")) {
+    if (ADMIN_PATHS.contains(request.getPath())) {
       Set<String> liveNodes = clusterState.getLiveNodes();
       for (String liveNode : liveNodes) {
         theUrlList.add(zkStateReader.getBaseUrlForNodeName(liveNode));
@@ -1094,7 +1107,7 @@ public class CloudSolrClient extends SolrClient {
     Set<String> collectionNames = new HashSet<>();
     // validate collections
     for (String collectionName : rawCollectionsList) {
-      if (!clusterState.getCollections().contains(collectionName)) {
+      if (!clusterState.hasCollection(collectionName)) {
         Aliases aliases = zkStateReader.getAliases();
         String alias = aliases.getCollectionAlias(collectionName);
         if (alias != null) {

@@ -17,7 +17,16 @@ package org.apache.lucene.queries;
  * limitations under the License.
  */
 
+import java.io.IOException;
+
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.MultiReader;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryUtils;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.LuceneTestCase;
@@ -35,4 +44,14 @@ public class BoostingQueryTest extends LuceneTestCase {
     BoostingQuery bq2 = new BoostingQuery(q1, q2, 0.1f);
     assertEquals("BoostingQuery with same attributes is not equal", bq1, bq2);
   }
+
+  public void testRewrite() throws IOException {
+    IndexReader reader = new MultiReader();
+    BoostingQuery q = new BoostingQuery(new MatchNoDocsQuery(), new MatchAllDocsQuery(), 3);
+    Query rewritten = new IndexSearcher(reader).rewrite(q);
+    Query expectedRewritten = new BoostingQuery(new BooleanQuery.Builder().build(), new MatchAllDocsQuery(), 3);
+    assertEquals(expectedRewritten, rewritten);
+    assertSame(rewritten, rewritten.rewrite(reader));
+  }
+
 }

@@ -19,6 +19,7 @@ package org.apache.lucene.index;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Random;
 
 import org.apache.lucene.analysis.*;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
@@ -73,12 +74,13 @@ public class TestTermVectorsReader extends LuceneTestCase {
 
     Arrays.sort(testTerms);
     int tokenUpto = 0;
+    Random rnd = random();
     for (int i = 0; i < testTerms.length; i++) {
       positions[i] = new int[TERM_FREQ];
       // first position must be 0
       for (int j = 0; j < TERM_FREQ; j++) {
         // positions are always sorted in increasing order
-        positions[i][j] = (int) (j * 10 + Math.random() * 10);
+        positions[i][j] = (int) (j * 10 + rnd.nextDouble() * 10);
         TestToken token = tokens[tokenUpto++] = new TestToken();
         token.text = testTerms[i];
         token.pos = positions[i][j];
@@ -228,7 +230,7 @@ public class TestTermVectorsReader extends LuceneTestCase {
         //System.out.println("Term: " + term);
         assertEquals(testTerms[i], term);
         
-        postingsEnum = TestUtil.docs(random(), termsEnum, null, postingsEnum, PostingsEnum.NONE);
+        postingsEnum = TestUtil.docs(random(), termsEnum, postingsEnum, PostingsEnum.NONE);
         assertNotNull(postingsEnum);
         int doc = postingsEnum.docID();
         assertEquals(-1, doc);
@@ -255,7 +257,7 @@ public class TestTermVectorsReader extends LuceneTestCase {
       //System.out.println("Term: " + term);
       assertEquals(testTerms[i], term);
 
-      dpEnum = termsEnum.postings(null, dpEnum, PostingsEnum.ALL);
+      dpEnum = termsEnum.postings(dpEnum, PostingsEnum.ALL);
       assertNotNull(dpEnum);
       int doc = dpEnum.docID();
       assertEquals(-1, doc);
@@ -266,7 +268,7 @@ public class TestTermVectorsReader extends LuceneTestCase {
       }
       assertEquals(DocIdSetIterator.NO_MORE_DOCS, dpEnum.nextDoc());
 
-      dpEnum = termsEnum.postings(null, dpEnum, PostingsEnum.ALL);
+      dpEnum = termsEnum.postings(dpEnum, PostingsEnum.ALL);
       doc = dpEnum.docID();
       assertEquals(-1, doc);
       assertTrue(dpEnum.nextDoc() != DocIdSetIterator.NO_MORE_DOCS);
@@ -291,8 +293,8 @@ public class TestTermVectorsReader extends LuceneTestCase {
       String term = text.utf8ToString();
       //System.out.println("Term: " + term);
       assertEquals(testTerms[i], term);
-      assertNotNull(termsEnum.postings(null, null));
-      assertNotNull(termsEnum.postings(null, null, PostingsEnum.ALL));
+      assertNotNull(termsEnum.postings(null));
+      assertNotNull(termsEnum.postings(null, PostingsEnum.ALL));
     }
     reader.close();
   }
@@ -311,7 +313,7 @@ public class TestTermVectorsReader extends LuceneTestCase {
       String term = text.utf8ToString();
       assertEquals(testTerms[i], term);
 
-      dpEnum = termsEnum.postings(null, dpEnum, PostingsEnum.ALL);
+      dpEnum = termsEnum.postings(dpEnum, PostingsEnum.ALL);
       assertNotNull(dpEnum);
       assertTrue(dpEnum.nextDoc() != DocIdSetIterator.NO_MORE_DOCS);
       assertEquals(dpEnum.freq(), positions[i].length);
@@ -320,7 +322,7 @@ public class TestTermVectorsReader extends LuceneTestCase {
       }
       assertEquals(DocIdSetIterator.NO_MORE_DOCS, dpEnum.nextDoc());
 
-      dpEnum = termsEnum.postings(null, dpEnum, PostingsEnum.ALL);
+      dpEnum = termsEnum.postings(dpEnum, PostingsEnum.ALL);
       assertTrue(dpEnum.nextDoc() != DocIdSetIterator.NO_MORE_DOCS);
       assertNotNull(dpEnum);
       assertEquals(dpEnum.freq(), positions[i].length);

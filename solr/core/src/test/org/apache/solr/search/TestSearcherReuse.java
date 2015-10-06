@@ -89,7 +89,10 @@ public class TestSearcherReuse extends SolrTestCaseJ4 {
         assertU(commit());
       }
     }
-    assertU(commit());
+
+    // with random merge policies, a regular commit can cause a segment to be flushed that can kick off a background merge
+    // that can cause a later commit to actually see changes and open a new searcher.  This should not be possible with optimize
+    assertU(optimize());
 
     // seed a single query into the cache
     assertQ(req("*:*"), "//*[@numFound='"+numDocs+"']");
@@ -113,11 +116,11 @@ public class TestSearcherReuse extends SolrTestCaseJ4 {
       assertSearcherHasNotChanged(expectedSearcher);
 
       assertU(delQ("id:match_no_documents"));
-      assertU(commit());
+      assertU(commit("softCommit","true","openSearcher","true"));
       assertSearcherHasNotChanged(expectedSearcher);
 
       assertU(delI("0")); // no doc has this id, yet
-      assertU(commit("softCommit","true"));
+      assertU(commit("softCommit","true","openSearcher","true"));
       assertSearcherHasNotChanged(expectedSearcher);
 
     } finally {

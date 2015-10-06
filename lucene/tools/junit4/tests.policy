@@ -38,6 +38,9 @@ grant {
   permission java.io.FilePermission "${junit4.childvm.cwd}${/}jacoco.db", "write";
   permission java.io.FilePermission "${junit4.tempDir}${/}*", "read,write,delete";
   permission java.io.FilePermission "${clover.db.dir}${/}-", "read,write,delete";
+  
+  // needed by SSD detection tests in TestIOUtils (creates symlinks)
+  permission java.nio.file.LinkPermission "symbolic";
 
   // needed by gson serialization of junit4 runner: TODO clean that up
   permission java.lang.RuntimePermission "accessDeclaredMembers";
@@ -54,18 +57,8 @@ grant {
   permission java.lang.RuntimePermission "getStackTrace";
   // needed for mock filesystems in tests
   permission java.lang.RuntimePermission "fileSystemProvider";
-  // needed for mock filesystems in tests (to capture implCloseChannel) 
-  permission java.lang.RuntimePermission "accessClassInPackage.sun.nio.ch";
-  // needed by junit nested compat tests (due to static fields reflection), TODO clean these up:
-  permission java.lang.RuntimePermission "accessClassInPackage.sun.util.calendar";
-  permission java.lang.RuntimePermission "accessClassInPackage.sun.util.locale";
-  permission java.lang.RuntimePermission "accessClassInPackage.sun.nio.fs";
-  // needed by queryparser/ NLS., TODO clean this up:
-  permission java.lang.RuntimePermission "accessClassInPackage.sun.util";
   // needed for test of IOUtils.spins (maybe it can be avoided)
   permission java.lang.RuntimePermission "getFileStoreAttributes";
-  // analyzers/morfologik: needed for a horrible context classloader hack for solr in morfologikfilter: nuke this
-  permission java.lang.RuntimePermission "setContextClassLoader";
   // analyzers/uima: needed by UIMA message localization... (?)
   permission java.lang.RuntimePermission "createSecurityManager";
   permission java.lang.RuntimePermission "createClassLoader";
@@ -73,6 +66,8 @@ grant {
   permission java.lang.RuntimePermission "getClassLoader";
   // needed to test unmap hack on platforms that support it
   permission java.lang.RuntimePermission "accessClassInPackage.sun.misc";
+  // needed by cyberneko usage by benchmarks on J9
+  permission java.lang.RuntimePermission "accessClassInPackage.org.apache.xerces.util";
   // needed by jacoco to dump coverage
   permission java.lang.RuntimePermission "shutdownHooks";
   
@@ -105,4 +100,7 @@ grant {
   // SSL related properties for jetty
   permission java.security.SecurityPermission "getProperty.ssl.KeyManagerFactory.algorithm";
   permission java.security.SecurityPermission "getProperty.ssl.TrustManagerFactory.algorithm";
+  
+  // allows LuceneTestCase#runWithRestrictedPermissions to execute with lower (or no) permission
+  permission java.security.SecurityPermission "createAccessControlContext";
 };

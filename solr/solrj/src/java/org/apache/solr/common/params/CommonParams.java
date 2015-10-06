@@ -163,6 +163,13 @@ public interface CommonParams {
 
   /** include header in the response */
   public static final String OMIT_HEADER = "omitHeader";
+  public static final String CORES_HANDLER_PATH = "/admin/cores";
+  public static final String COLLECTIONS_HANDLER_PATH = "/admin/collections";
+  public static final String INFO_HANDLER_PATH = "/admin/info";
+  public static final String CONFIGSETS_HANDLER_PATH = "/admin/configs";
+  public static final String AUTHZ_PATH = "/admin/authorization";
+  public static final String AUTHC_PATH = "/admin/authentication";
+  public static final String ZK_PATH = "/admin/zookeeper";
 
   /** valid values for: <code>echoParams</code> */
   public enum EchoParamStyle {

@@ -84,7 +84,13 @@ public class TestIndexWriterOutOfFileDescriptors extends LuceneTestCase {
           w.addDocument(docs.nextDoc());
         }
         dir.setRandomIOExceptionRateOnOpen(0.0);
-        w.close();
+        if (ms instanceof ConcurrentMergeScheduler) {
+          ((ConcurrentMergeScheduler) ms).sync();
+        }
+        // If exc hit CMS then writer will be tragically closed:
+        if (w.getTragicException() == null) {
+          w.close();
+        }
         w = null;
 
         // NOTE: This is O(N^2)!  Only enable for temporary debugging:
@@ -114,7 +120,7 @@ public class TestIndexWriterOutOfFileDescriptors extends LuceneTestCase {
         if (VERBOSE) {
           System.out.println("TEST: iter=" + iter + ": success");
         }
-      } catch (IOException ioe) {
+      } catch (AssertionError | IOException ioe) {
         if (VERBOSE) {
           System.out.println("TEST: iter=" + iter + ": exception");
           ioe.printStackTrace();

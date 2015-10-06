@@ -26,6 +26,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.WeakHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
@@ -33,7 +34,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.Accountables;
-import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.RoaringDocIdSet;
 
 /**
@@ -41,7 +41,7 @@ import org.apache.lucene.util.RoaringDocIdSet;
  * needed.  The purpose is to allow queries to simply care about matching and
  * scoring, and then wrap with this class to add caching.
  */
-public class CachingWrapperQuery extends Query implements Accountable {
+public class CachingWrapperQuery extends Query implements Accountable, Cloneable {
   private Query query; // not final because of clone
   private final QueryCachingPolicy policy;
   private final Map<Object,DocIdSet> cache = Collections.synchronizedMap(new WeakHashMap<Object,DocIdSet>());
@@ -62,29 +62,12 @@ public class CachingWrapperQuery extends Query implements Accountable {
     this(query, QueryCachingPolicy.CacheOnLargeSegments.DEFAULT);
   }
 
-  @Override
-  public CachingWrapperQuery clone() {
-    final CachingWrapperQuery clone = (CachingWrapperQuery) super.clone();
-    clone.query = query.clone();
-    return clone;
-  }
-
   /**
    * Gets the contained query.
    * @return the contained query.
    */
   public Query getQuery() {
     return query;
-  }
-  
-  @Override
-  public float getBoost() {
-    return query.getBoost();
-  }
-  
-  @Override
-  public void setBoost(float b) {
-    query.setBoost(b);
   }
   
   /**
@@ -96,11 +79,14 @@ public class CachingWrapperQuery extends Query implements Accountable {
 
   @Override
   public Query rewrite(IndexReader reader) throws IOException {
+    if (getBoost() != 1f) {
+      return super.rewrite(reader);
+    }
     final Query rewritten = query.rewrite(reader);
     if (query == rewritten) {
-      return this;
+      return super.rewrite(reader);
     } else {
-      CachingWrapperQuery clone = clone();
+      CachingWrapperQuery clone = (CachingWrapperQuery) clone();
       clone.query = rewritten;
       return clone;
     }
@@ -116,15 +102,22 @@ public class CachingWrapperQuery extends Query implements Accountable {
       // our cache is not sufficient, we need scores too
       return weight;
     }
-    policy.onUse(weight.getQuery());
+
     return new ConstantScoreWeight(weight.getQuery()) {
+
+      final AtomicBoolean used = new AtomicBoolean(false);
+
       @Override
       public void extractTerms(Set<Term> terms) {
         weight.extractTerms(terms);
       }
 
       @Override
-      public Scorer scorer(LeafReaderContext context, final Bits acceptDocs) throws IOException {
+      public Scorer scorer(LeafReaderContext context) throws IOException {
+        if (used.compareAndSet(false, true)) {
+          policy.onUse(getQuery());
+        }
+
         final LeafReader reader = context.reader();
         final Object key = reader.getCoreCacheKey();
 
@@ -133,7 +126,7 @@ public class CachingWrapperQuery extends Query implements Accountable {
           hitCount++;
         } else if (policy.shouldCache(query, context)) {
           missCount++;
-          final Scorer scorer = weight.scorer(context, null);
+          final Scorer scorer = weight.scorer(context);
           if (scorer == null) {
             docIdSet = DocIdSet.EMPTY;
           } else {
@@ -141,7 +134,7 @@ public class CachingWrapperQuery extends Query implements Accountable {
           }
           cache.put(key, docIdSet);
         } else {
-          return weight.scorer(context, acceptDocs);
+          return weight.scorer(context);
         }
 
         assert docIdSet != null;
@@ -153,21 +146,7 @@ public class CachingWrapperQuery extends Query implements Accountable {
           return null;
         }
 
-        // We apply acceptDocs as an approximation
-        if (acceptDocs == null) {
-          return new ConstantScoreScorer(this, 0f, disi);
-        } else {
-          final TwoPhaseIterator twoPhaseView = new TwoPhaseIterator(disi) {
-
-            @Override
-            public boolean matches() throws IOException {
-              final int doc = approximation.docID();
-              return acceptDocs.get(doc);
-            }
-
-          };
-          return new ConstantScoreScorer(this, 0f, twoPhaseView);
-        }
+        return new ConstantScoreScorer(this, 0f, disi);
       }
     };
   }
@@ -179,14 +158,14 @@ public class CachingWrapperQuery extends Query implements Accountable {
 
   @Override
   public boolean equals(Object o) {
-    if (o == null || !getClass().equals(o.getClass())) return false;
+    if (super.equals(o) == false) return false;
     final CachingWrapperQuery other = (CachingWrapperQuery) o;
     return this.query.equals(other.query);
   }
 
   @Override
   public int hashCode() {
-    return (query.hashCode() ^ getClass().hashCode());
+    return (query.hashCode() ^ super.hashCode());
   }
 
   @Override

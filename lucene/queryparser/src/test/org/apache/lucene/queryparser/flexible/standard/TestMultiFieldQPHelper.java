@@ -72,10 +72,10 @@ public class TestMultiFieldQPHelper extends LuceneTestCase {
     mfqp.setAnalyzer(a);
 
     Query q = mfqp.parse(qtxt, null);
-    assertEquals(expectedRes, q.toString());
+    assertEquals(expectedRes, q.toString().trim());
 
     q = QueryParserUtil.parse(qtxt, fields, occur, a);
-    assertEquals(expectedRes, q.toString());
+    assertEquals(expectedRes, q.toString().trim());
   }
 
   public void testSimple() throws Exception {
@@ -98,13 +98,13 @@ public class TestMultiFieldQPHelper extends LuceneTestCase {
         .toString());
 
     q = mfqp.parse("one^2 two", null);
-    assertEquals("((b:one t:one)^2.0) (b:two t:two)", q.toString());
+    assertEquals("(b:one t:one)^2.0 (b:two t:two)", q.toString());
 
     q = mfqp.parse("one~ two", null);
     assertEquals("(b:one~2 t:one~2) (b:two t:two)", q.toString());
 
     q = mfqp.parse("one~0.8 two^2", null);
-    assertEquals("(b:one~0 t:one~0) ((b:two t:two)^2.0)", q.toString());
+    assertEquals("(b:one~0 t:one~0) (b:two t:two)^2.0", q.toString());
 
     q = mfqp.parse("one* two*", null);
     assertEquals("(b:one* t:one*) (b:two* t:two*)", q.toString());
@@ -173,7 +173,7 @@ public class TestMultiFieldQPHelper extends LuceneTestCase {
         .toString());
 
     q = mfqp.parse("one^3 AND two^4", null);
-    assertEquals("+((b:one^5.0 t:one^10.0)^3.0) +((b:two^5.0 t:two^10.0)^4.0)",
+    assertEquals("+(b:one^5.0 t:one^10.0)^3.0 +(b:two^5.0 t:two^10.0)^4.0",
         q.toString());
   }
 
@@ -208,7 +208,7 @@ public class TestMultiFieldQPHelper extends LuceneTestCase {
 
     String[] queries6 = { "((+stop))", "+((stop))" };
     q = QueryParserUtil.parse(queries6, fields, stopA);
-    assertEquals("", q.toString());
+    assertEquals(" ", q.toString());
 
     String[] queries7 = { "one ((+stop)) +more", "+((stop)) +two" };
     q = QueryParserUtil.parse(queries7, fields, stopA);

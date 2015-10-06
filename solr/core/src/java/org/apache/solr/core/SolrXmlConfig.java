@@ -234,6 +234,9 @@ public class SolrXmlConfig {
         case "infoHandler":
           builder.setInfoHandlerClass(value);
           break;
+        case "configSetsHandler":
+          builder.setConfigSetsHandlerClass(value);
+          break;
         case "coreRootDirectory":
           builder.setCoreRootDirectory(value);
           break;
@@ -363,7 +366,8 @@ public class SolrXmlConfig {
         case "zkACLProvider":
           builder.setZkACLProviderClass(value);
           break;
-        case "zkCredientialsProvider":
+        case "zkCredientialsProvider": // deprecated
+        case "zkCredentialsProvider":
           builder.setZkCredentialsProviderClass(value);
           break;
         default:

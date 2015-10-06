@@ -30,9 +30,9 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
-import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LongValues;
+import org.apache.lucene.util.ToStringUtils;
 
 import java.io.IOException;
 import java.util.Set;
@@ -104,15 +104,12 @@ final class GlobalOrdinalsWithScoreQuery extends Query {
           "min=" + min +
           "max=" + max +
           "fromQuery=" + fromQuery +
-        '}';
+        '}' + ToStringUtils.boost(getBoost());
   }
 
   final class W extends Weight {
 
     private final Weight approximationWeight;
-
-    private float queryNorm;
-    private float queryWeight;
 
     W(Query query, Weight approximationWeight) {
       super(query);
@@ -144,24 +141,23 @@ final class GlobalOrdinalsWithScoreQuery extends Query {
 
     @Override
     public float getValueForNormalization() throws IOException {
-      queryWeight = getBoost();
-      return queryWeight * queryWeight;
+      return 1f;
     }
 
     @Override
-    public void normalize(float norm, float topLevelBoost) {
-      this.queryNorm = norm * topLevelBoost;
-      queryWeight *= this.queryNorm;
+    public void normalize(float norm, float boost) {
+      // no normalization, we ignore the normalization process
+      // and produce scores based on the join
     }
 
     @Override
-    public Scorer scorer(LeafReaderContext context, Bits acceptDocs) throws IOException {
+    public Scorer scorer(LeafReaderContext context) throws IOException {
       SortedDocValues values = DocValues.getSorted(context.reader(), joinField);
       if (values == null) {
         return null;
       }
 
-      Scorer approximationScorer = approximationWeight.scorer(context, acceptDocs);
+      Scorer approximationScorer = approximationWeight.scorer(context);
       if (approximationScorer == null) {
         return null;
       } else if (globalOrds != null) {

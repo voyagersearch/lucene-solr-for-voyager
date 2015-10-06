@@ -57,11 +57,14 @@ final class DeleteByQueryWrapper extends Query {
   
   @Override
   public Query rewrite(IndexReader reader) throws IOException {
+    if (getBoost() != 1f) {
+      return super.rewrite(reader);
+    }
     Query rewritten = in.rewrite(reader);
     if (rewritten != in) {
       return new DeleteByQueryWrapper(rewritten, schema);
     } else {
-      return this;
+      return super.rewrite(reader);
     }
   }
   
@@ -86,8 +89,8 @@ final class DeleteByQueryWrapper extends Query {
       public void normalize(float norm, float topLevelBoost) { inner.normalize(norm, topLevelBoost); }
 
       @Override
-      public Scorer scorer(LeafReaderContext context, Bits acceptDocs) throws IOException {
-        return inner.scorer(privateContext.getIndexReader().leaves().get(0), acceptDocs);
+      public Scorer scorer(LeafReaderContext context) throws IOException {
+        return inner.scorer(privateContext.getIndexReader().leaves().get(0));
       }
     };
   }

@@ -35,17 +35,6 @@ import org.apache.lucene.util.FrequencyTrackingRingBuffer;
  */
 public final class UsageTrackingQueryCachingPolicy implements QueryCachingPolicy {
 
-  private static Query cacheKey(Query query) {
-    if (query.getBoost() == 1f) {
-      return query;
-    } else {
-      Query key = query.clone();
-      key.setBoost(1f);
-      assert key == cacheKey(key);
-      return key;
-    }
-  }
-
   // the hash code that we use as a sentinel in the ring buffer.
   private static final int SENTINEL = Integer.MIN_VALUE;
 
@@ -109,9 +98,12 @@ public final class UsageTrackingQueryCachingPolicy implements QueryCachingPolicy
 
   @Override
   public void onUse(Query query) {
-    // call possible Query clone and hashCode outside of sync block
+    assert query instanceof BoostQuery == false;
+    assert query instanceof ConstantScoreQuery == false;
+
+    // call hashCode outside of sync block
     // in case it's somewhat expensive:
-    int hashCode = cacheKey(query).hashCode();
+    int hashCode = query.hashCode();
 
     // we only track hash codes to avoid holding references to possible
     // large queries; this may cause rare false positives, but at worse
@@ -122,10 +114,12 @@ public final class UsageTrackingQueryCachingPolicy implements QueryCachingPolicy
   }
 
   int frequency(Query query) {
-    
-    // call possible Query clone and hashCode outside of sync block
+    assert query instanceof BoostQuery == false;
+    assert query instanceof ConstantScoreQuery == false;
+
+    // call hashCode outside of sync block
     // in case it's somewhat expensive:
-    int hashCode = cacheKey(query).hashCode();
+    int hashCode = query.hashCode();
 
     synchronized (this) {
       return recentlyUsedFilters.frequency(hashCode);
@@ -134,6 +128,24 @@ public final class UsageTrackingQueryCachingPolicy implements QueryCachingPolicy
 
   @Override
   public boolean shouldCache(Query query, LeafReaderContext context) throws IOException {
+    if (query instanceof MatchAllDocsQuery
+        // MatchNoDocsQuery currently rewrites to a BooleanQuery,
+        // but who knows, it might get its own Weight one day
+        || query instanceof MatchNoDocsQuery) {
+      return false;
+    }
+    if (query instanceof BooleanQuery) {
+      BooleanQuery bq = (BooleanQuery) query;
+      if (bq.clauses().isEmpty()) {
+        return false;
+      }
+    }
+    if (query instanceof DisjunctionMaxQuery) {
+      DisjunctionMaxQuery dmq = (DisjunctionMaxQuery) query;
+      if (dmq.getDisjuncts().isEmpty()) {
+        return false;
+      }
+    }
     if (segmentPolicy.shouldCache(query, context) == false) {
       return false;
     }

@@ -22,6 +22,7 @@ import org.apache.solr.client.solrj.SolrServerException;
 import org.apache.solr.client.solrj.impl.HttpSolrClient;
 import org.apache.solr.client.solrj.request.QueryRequest;
 import org.apache.solr.common.params.CollectionParams;
+import org.apache.solr.common.params.CommonAdminParams;
 import org.apache.solr.common.params.ModifiableSolrParams;
 import org.apache.solr.common.util.NamedList;
 import org.junit.Test;
@@ -46,7 +47,7 @@ public class TestRequestStatusCollectionAPI extends BasicDistributedZkTest {
     params.set("replicationFactor", 1);
     params.set("maxShardsPerNode", 100);
     params.set("collection.configName", "conf1");
-    params.set("async", "1000");
+    params.set(CommonAdminParams.ASYNC, "1000");
     try {
       sendRequest(params);
     } catch (SolrServerException | IOException e) {
@@ -62,7 +63,7 @@ public class TestRequestStatusCollectionAPI extends BasicDistributedZkTest {
     params = new ModifiableSolrParams();
 
     params.set("action", CollectionParams.CollectionAction.REQUESTSTATUS.toString());
-    params.set(OverseerCollectionProcessor.REQUESTID, "1000");
+    params.set(OverseerCollectionMessageHandler.REQUESTID, "1000");
 
     try {
       message = sendStatusRequestWithRetry(params, MAX_WAIT_TIMEOUT_SECONDS);
@@ -75,7 +76,7 @@ public class TestRequestStatusCollectionAPI extends BasicDistributedZkTest {
     // Check for a random (hopefully non-existent request id
     params = new ModifiableSolrParams();
     params.set(CollectionParams.ACTION, CollectionParams.CollectionAction.REQUESTSTATUS.toString());
-    params.set(OverseerCollectionProcessor.REQUESTID, "9999999");
+    params.set(OverseerCollectionMessageHandler.REQUESTID, "9999999");
     try {
       r = sendRequest(params);
       status = (NamedList) r.get("status");
@@ -90,7 +91,7 @@ public class TestRequestStatusCollectionAPI extends BasicDistributedZkTest {
     params.set(CollectionParams.ACTION, CollectionParams.CollectionAction.SPLITSHARD.toString());
     params.set("collection", "collection2");
     params.set("shard", "shard1");
-    params.set("async", "1001");
+    params.set(CommonAdminParams.ASYNC, "1001");
     try {
       sendRequest(params);
     } catch (SolrServerException | IOException e) {
@@ -100,7 +101,7 @@ public class TestRequestStatusCollectionAPI extends BasicDistributedZkTest {
     // Check for the request to be completed.
       params = new ModifiableSolrParams();
       params.set("action", CollectionParams.CollectionAction.REQUESTSTATUS.toString());
-      params.set(OverseerCollectionProcessor.REQUESTID, "1001");
+      params.set(OverseerCollectionMessageHandler.REQUESTID, "1001");
     try {
       message = sendStatusRequestWithRetry(params, MAX_WAIT_TIMEOUT_SECONDS);
     } catch (SolrServerException | IOException e) {
@@ -116,7 +117,7 @@ public class TestRequestStatusCollectionAPI extends BasicDistributedZkTest {
       params.set("replicationFactor", 1);
       params.set("maxShardsPerNode", 100);
       params.set("collection.configName", "conf1");
-      params.set("async", "1002");
+      params.set(CommonAdminParams.ASYNC, "1002");
     try {
       sendRequest(params);
     } catch (SolrServerException | IOException e) {
@@ -127,7 +128,7 @@ public class TestRequestStatusCollectionAPI extends BasicDistributedZkTest {
     params = new ModifiableSolrParams();
 
       params.set("action", CollectionParams.CollectionAction.REQUESTSTATUS.toString());
-      params.set(OverseerCollectionProcessor.REQUESTID, "1002");
+      params.set(OverseerCollectionMessageHandler.REQUESTID, "1002");
 
     try {
       message = sendStatusRequestWithRetry(params, MAX_WAIT_TIMEOUT_SECONDS);
@@ -145,7 +146,7 @@ public class TestRequestStatusCollectionAPI extends BasicDistributedZkTest {
       params.set("replicationFactor", 1);
       params.set("maxShardsPerNode", 100);
       params.set("collection.configName", "conf1");
-      params.set("async", "1002");
+      params.set(CommonAdminParams.ASYNC, "1002");
     try {
       r = sendRequest(params);
     } catch (SolrServerException | IOException e) {

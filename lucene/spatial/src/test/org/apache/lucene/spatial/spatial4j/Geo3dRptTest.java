@@ -33,13 +33,13 @@ import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.SpatialPrefixTree;
 import org.apache.lucene.spatial.query.SpatialOperation;
 import org.apache.lucene.spatial.serialized.SerializedDVStrategy;
-import org.apache.lucene.spatial.spatial4j.geo3d.GeoBBoxFactory;
-import org.apache.lucene.spatial.spatial4j.geo3d.GeoCircle;
-import org.apache.lucene.spatial.spatial4j.geo3d.GeoPath;
-import org.apache.lucene.spatial.spatial4j.geo3d.GeoPoint;
-import org.apache.lucene.spatial.spatial4j.geo3d.GeoPolygonFactory;
-import org.apache.lucene.spatial.spatial4j.geo3d.GeoShape;
-import org.apache.lucene.spatial.spatial4j.geo3d.PlanetModel;
+import org.apache.lucene.geo3d.GeoBBoxFactory;
+import org.apache.lucene.geo3d.GeoStandardCircle;
+import org.apache.lucene.geo3d.GeoPath;
+import org.apache.lucene.geo3d.GeoPoint;
+import org.apache.lucene.geo3d.GeoPolygonFactory;
+import org.apache.lucene.geo3d.GeoShape;
+import org.apache.lucene.geo3d.PlanetModel;
 import org.junit.Test;
 
 import static com.spatial4j.core.distance.DistanceUtils.DEGREES_TO_RADIANS;
@@ -90,6 +90,26 @@ public class Geo3dRptTest extends RandomSpatialOpStrategyTestCase {
     final Shape triangle = new Geo3dShape(GeoPolygonFactory.makeGeoPolygon(PlanetModel.SPHERE, points,0),ctx);
     final Rectangle rect = ctx.makeRectangle(-49, -45, 73, 86);
     testOperation(rect,SpatialOperation.Intersects,triangle, false);
+  }
+
+  @Test
+  public void testFailureLucene6535() throws IOException {
+    setupStrategy();
+
+    final List<GeoPoint> points = new ArrayList<>();
+    points.add(new GeoPoint(PlanetModel.SPHERE, 18 * DEGREES_TO_RADIANS, -27 * DEGREES_TO_RADIANS));
+    points.add(new GeoPoint(PlanetModel.SPHERE, -57 * DEGREES_TO_RADIANS, 146 * DEGREES_TO_RADIANS));
+    points.add(new GeoPoint(PlanetModel.SPHERE, 14 * DEGREES_TO_RADIANS, -180 * DEGREES_TO_RADIANS));
+    points.add(new GeoPoint(PlanetModel.SPHERE, -15 * DEGREES_TO_RADIANS, 153 * DEGREES_TO_RADIANS));
+    final GeoPath path = new GeoPath(PlanetModel.SPHERE, 29 * DEGREES_TO_RADIANS);
+    path.addPoint(55.0 * DEGREES_TO_RADIANS, -26.0 * DEGREES_TO_RADIANS);
+    path.addPoint(-90.0 * DEGREES_TO_RADIANS, 0.0);
+    path.addPoint(54.0 * DEGREES_TO_RADIANS, 165.0 * DEGREES_TO_RADIANS);
+    path.addPoint(-90.0 * DEGREES_TO_RADIANS, 0.0);
+    path.done();
+    final Shape shape = new Geo3dShape(path,ctx);
+    final Rectangle rect = ctx.makeRectangle(131, 143, 39, 54);
+    testOperation(rect,SpatialOperation.Intersects,shape,true);
   }
 
   @Test
@@ -146,7 +166,7 @@ public class Geo3dRptTest extends RandomSpatialOpStrategyTestCase {
           final int circleRadius = random().nextInt(179) + 1;
           final Point point = randomPoint();
           try {
-            final GeoShape shape = new GeoCircle(PlanetModel.SPHERE, point.getY() * DEGREES_TO_RADIANS, point.getX() * DEGREES_TO_RADIANS,
+            final GeoShape shape = new GeoStandardCircle(PlanetModel.SPHERE, point.getY() * DEGREES_TO_RADIANS, point.getX() * DEGREES_TO_RADIANS,
               circleRadius * DEGREES_TO_RADIANS);
             return new Geo3dShape(shape, ctx);
           } catch (IllegalArgumentException e) {

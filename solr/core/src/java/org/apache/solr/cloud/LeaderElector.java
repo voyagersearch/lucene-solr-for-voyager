@@ -22,10 +22,12 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import org.apache.commons.lang.StringUtils;
+import org.apache.solr.cloud.ZkController.ContextKey;
 import org.apache.solr.common.SolrException;
 import org.apache.solr.common.cloud.SolrZkClient;
 import org.apache.solr.common.cloud.ZkCmdExecutor;
@@ -70,11 +72,21 @@ public  class LeaderElector {
 
   private ElectionWatcher watcher;
 
+  private Map<ContextKey,ElectionContext> electionContexts;
+  private ContextKey contextKey;
+
   public LeaderElector(SolrZkClient zkClient) {
     this.zkClient = zkClient;
     zkCmdExecutor = new ZkCmdExecutor(zkClient.getZkClientTimeout());
   }
   
+  public LeaderElector(SolrZkClient zkClient, ContextKey key, Map<ContextKey,ElectionContext> electionContexts) {
+    this.zkClient = zkClient;
+    zkCmdExecutor = new ZkCmdExecutor(zkClient.getZkClientTimeout());
+    this.electionContexts = electionContexts;
+    this.contextKey = key;
+  }
+
   public ElectionContext getContext() {
     return context;
   }
@@ -140,20 +152,6 @@ public  class LeaderElector {
         retryElection(context, false);//join at the tail again
         return;
       }
-      // first we delete the node advertising the old leader in case the ephem is still there
-      try {
-        zkClient.delete(context.leaderPath, -1, true);
-      }catch (KeeperException.NoNodeException nne){
-        //no problem
-      }catch (InterruptedException e){
-        throw e;
-      } catch (Exception e) {
-        //failed to delete the leader node
-        log.error("leader elect delete error",e);
-        retryElection(context, false);
-        return;
-        // fine
-      }
 
       try {
         runIamLeaderProcess(context, replacement);
@@ -181,6 +179,7 @@ public  class LeaderElector {
         String watchedNode = holdElectionPath + "/" + seqs.get(toWatch);
 
         zkClient.getData(watchedNode, watcher = new ElectionWatcher(context.leaderSeqPath , watchedNode,seq, context) , null, true);
+        log.info("Watching path {} to know if I could be the leader", watchedNode);
       } catch (KeeperException.SessionExpiredException e) {
         throw e;
       } catch (KeeperException e) {
@@ -278,8 +277,8 @@ public  class LeaderElector {
     while (cont) {
       try {
         if(joinAtHead){
-          log.info("node {} Trying to join election at the head ", id);
-          List<String> nodes = OverseerCollectionProcessor.getSortedElectionNodes(zkClient, shardsElectZkPath);
+          log.info("Node {} trying to join election at the head", id);
+          List<String> nodes = OverseerTaskProcessor.getSortedElectionNodes(zkClient, shardsElectZkPath);
           if(nodes.size() <2){
             leaderSeqPath = zkClient.create(shardsElectZkPath + "/" + id + "-n_", null,
                 CreateMode.EPHEMERAL_SEQUENTIAL, false);
@@ -293,14 +292,13 @@ public  class LeaderElector {
             }
             leaderSeqPath = shardsElectZkPath + "/" + id + "-n_"+ m.group(1);
             zkClient.create(leaderSeqPath, null, CreateMode.EPHEMERAL, false);
-            log.info("Joined at the head  {}", leaderSeqPath );
-
           }
         } else {
           leaderSeqPath = zkClient.create(shardsElectZkPath + "/" + id + "-n_", null,
               CreateMode.EPHEMERAL_SEQUENTIAL, false);
         }
 
+        log.info("Joined leadership election with path: {}", leaderSeqPath);
         context.leaderSeqPath = leaderSeqPath;
         cont = false;
       } catch (ConnectionLossException e) {
@@ -423,6 +421,9 @@ public  class LeaderElector {
   void retryElection(ElectionContext context, boolean joinAtHead) throws KeeperException, InterruptedException, IOException {
     ElectionWatcher watcher = this.watcher;
     ElectionContext ctx = context.copy();
+    if (electionContexts != null) {
+      electionContexts.put(contextKey, ctx);
+    }
     if (watcher != null) watcher.cancel();
     this.context.cancelElection();
     this.context = ctx;

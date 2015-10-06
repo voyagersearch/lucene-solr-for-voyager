@@ -1,6 +1,6 @@
 package org.apache.lucene.queries.mlt;
 
-/**
+/*
  * Copyright 2004-2005 The Apache Software Foundation.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -29,6 +29,7 @@ import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.similarities.DefaultSimilarity;
@@ -613,19 +614,19 @@ public final class MoreLikeThis {
    * Create the More like query from a PriorityQueue
    */
   private Query createQuery(PriorityQueue<ScoreTerm> q) {
-    BooleanQuery query = new BooleanQuery();
+    BooleanQuery.Builder query = new BooleanQuery.Builder();
     ScoreTerm scoreTerm;
     float bestScore = -1;
 
     while ((scoreTerm = q.pop()) != null) {
-      TermQuery tq = new TermQuery(new Term(scoreTerm.topField, scoreTerm.word));
+      Query tq = new TermQuery(new Term(scoreTerm.topField, scoreTerm.word));
 
       if (boost) {
         if (bestScore == -1) {
           bestScore = (scoreTerm.score);
         }
         float myScore = (scoreTerm.score);
-        tq.setBoost(boostFactor * myScore / bestScore);
+        tq = new BoostQuery(tq, boostFactor * myScore / bestScore);
       }
 
       try {
@@ -635,7 +636,7 @@ public final class MoreLikeThis {
         break;
       }
     }
-    return query;
+    return query.build();
   }
 
   /**
@@ -751,11 +752,12 @@ public final class MoreLikeThis {
 
   private PriorityQueue<ScoreTerm> retrieveTerms(Map<String, Collection<Object>> fields) throws 
       IOException {
-    HashMap<String,Int> termFreqMap = new HashMap();
+    HashMap<String,Int> termFreqMap = new HashMap<>();
     for (String fieldName : fieldNames) {
-
       for (String field : fields.keySet()) {
         Collection<Object> fieldValues = fields.get(field);
+        if(fieldValues == null)
+          continue;
         for(Object fieldValue:fieldValues) {
           if (fieldValue != null) {
             addTermFrequencies(new StringReader(String.valueOf(fieldValue)), termFreqMap,

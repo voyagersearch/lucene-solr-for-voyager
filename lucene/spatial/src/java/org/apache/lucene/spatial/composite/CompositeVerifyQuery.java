@@ -51,11 +51,14 @@ public class CompositeVerifyQuery extends Query {
 
   @Override
   public Query rewrite(IndexReader reader) throws IOException {
+    if (getBoost() != 1f) {
+      return super.rewrite(reader);
+    }
     final Query rewritten = indexQuery.rewrite(reader);
     if (rewritten != indexQuery) {
       return new CompositeVerifyQuery(rewritten, predicateValueSource);
     }
-    return this;
+    return super.rewrite(reader);
   }
 
   @Override
@@ -94,9 +97,9 @@ public class CompositeVerifyQuery extends Query {
     return new ConstantScoreWeight(this) {
 
       @Override
-      public Scorer scorer(LeafReaderContext context, Bits acceptDocs) throws IOException {
+      public Scorer scorer(LeafReaderContext context) throws IOException {
 
-        final Scorer indexQueryScorer = indexQueryWeight.scorer(context, acceptDocs);//pass acceptDocs through
+        final Scorer indexQueryScorer = indexQueryWeight.scorer(context);
         if (indexQueryScorer == null) {
           return null;
         }

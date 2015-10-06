@@ -1,11 +1,20 @@
-/*
-  See http://wiki.apache.org/solr/ScriptUpdateProcessor for more details.
-*/
+function get_class(name) {
+  var clazz;
+  try {
+    // Java8 Nashorn
+    clazz = eval("Java.type(name).class");
+  } catch(e) {
+    // Java7 Rhino
+    clazz = eval("Packages."+name);
+  }
+
+  return clazz;
+}
 
 function processAdd(cmd) {
 
   doc = cmd.solrDoc;  // org.apache.solr.common.SolrInputDocument
-  id = doc.getFieldValue("id");
+  var id = doc.getFieldValue("id");
   logger.info("update-script#processAdd: id=" + id);
 
   // The idea here is to use the file's content_type value to
@@ -57,17 +66,27 @@ function processAdd(cmd) {
         break;
     }
 
-
     // TODO: error handling needed?   What if there is no slash?
     if(doc_type) { doc.setField("doc_type", doc_type); }
     doc.setField("content_type_type_s", ct_type);
     doc.setField("content_type_subtype_s", ct_subtype);
-
-// doc, image, unknown, ...
-    // application/pdf => doc
-    // application/msword => doc
-    // image/* => image
   }
+
+    var analyzer =
+         req.getCore().getLatestSchema()
+         .getFieldTypeByName("text_email_url")
+         .getIndexAnalyzer();
+
+  var token_stream =
+       analyzer.tokenStream("content", doc.getFieldValue("content"));
+  var term_att = token_stream.getAttribute(get_class("org.apache.lucene.analysis.tokenattributes.CharTermAttribute"));
+  var type_att = token_stream.getAttribute(get_class("org.apache.lucene.analysis.tokenattributes.TypeAttribute"));
+  token_stream.reset();
+  while (token_stream.incrementToken()) {
+    doc.addField(type_att.type().replaceAll(/\<|\>/g,"").toLowerCase()+"_ss", term_att.toString());
+  }
+  token_stream.end();
+  token_stream.close();
 }
 
 function processDelete(cmd) {

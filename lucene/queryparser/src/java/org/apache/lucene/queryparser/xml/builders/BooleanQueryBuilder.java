@@ -5,6 +5,7 @@ package org.apache.lucene.queryparser.xml.builders;
 
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.queryparser.xml.DOMUtils;
 import org.apache.lucene.queryparser.xml.ParserException;
@@ -46,9 +47,9 @@ public class BooleanQueryBuilder implements QueryBuilder {
 
   @Override
   public Query getQuery(Element e) throws ParserException {
-    BooleanQuery bq = new BooleanQuery(DOMUtils.getAttribute(e, "disableCoord", false));
+    BooleanQuery.Builder bq = new BooleanQuery.Builder();
+    bq.setDisableCoord(DOMUtils.getAttribute(e, "disableCoord", false));
     bq.setMinimumNumberShouldMatch(DOMUtils.getAttribute(e, "minimumNumberShouldMatch", 0));
-    bq.setBoost(DOMUtils.getAttribute(e, "boost", 1.0f));
 
     NodeList nl = e.getChildNodes();
     for (int i = 0; i < nl.getLength(); i++) {
@@ -63,7 +64,12 @@ public class BooleanQueryBuilder implements QueryBuilder {
       }
     }
 
-    return bq;
+    Query q = bq.build();
+    float boost = DOMUtils.getAttribute(e, "boost", 1.0f);
+    if (boost != 1f) {
+      q = new BoostQuery(q, boost);
+    }
+    return q;
   }
 
   static BooleanClause.Occur getOccursValue(Element clauseElem) throws ParserException {

@@ -32,6 +32,7 @@ import java.util.concurrent.Future;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.DirectoryReader; // javadocs
+import org.apache.lucene.index.FieldInvertState;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexReaderContext;
 import org.apache.lucene.index.IndexWriter; // javadocs
@@ -45,6 +46,8 @@ import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.similarities.DefaultSimilarity;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.store.NIOFSDirectory;    // javadoc
+import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.ThreadInterruptedException;
 
 /** Implements search over a single IndexReader.
@@ -75,9 +78,62 @@ import org.apache.lucene.util.ThreadInterruptedException;
  */
 public class IndexSearcher {
 
-  // disabled by default
-  private static QueryCache DEFAULT_QUERY_CACHE = null;
+  /** A search-time {@link Similarity} that does not make use of scoring factors
+   *  and may be used when scores are not needed. */
+  private static final Similarity NON_SCORING_SIMILARITY = new Similarity() {
+
+    @Override
+    public long computeNorm(FieldInvertState state) {
+      throw new UnsupportedOperationException("This Similarity may only be used for searching, not indexing");
+    }
+
+    @Override
+    public SimWeight computeWeight(CollectionStatistics collectionStats, TermStatistics... termStats) {
+      return new SimWeight() {
+
+        @Override
+        public float getValueForNormalization() {
+          return 1f;
+        }
+
+        @Override
+        public void normalize(float queryNorm, float boost) {}
+
+      };
+    }
+
+    @Override
+    public SimScorer simScorer(SimWeight weight, LeafReaderContext context) throws IOException {
+      return new SimScorer() {
+
+        @Override
+        public float score(int doc, float freq) {
+          return 0f;
+        }
+
+        @Override
+        public float computeSlopFactor(int distance) {
+          return 1f;
+        }
+
+        @Override
+        public float computePayloadFactor(int doc, int start, int end, BytesRef payload) {
+          return 1f;
+        }
+
+      };
+    }
+
+  };
+
+  private static QueryCache DEFAULT_QUERY_CACHE;
   private static QueryCachingPolicy DEFAULT_CACHING_POLICY = new UsageTrackingQueryCachingPolicy();
+  static {
+    final int maxCachedQueries = 1000;
+    // min of 32MB or 5% of the heap size
+    final long maxRamBytesUsed = Math.min(1L << 25, Runtime.getRuntime().maxMemory() / 20);
+    DEFAULT_QUERY_CACHE = new LRUQueryCache(maxCachedQueries, maxRamBytesUsed);
+  }
 
   final IndexReader reader; // package private for testing!
   
@@ -101,7 +157,7 @@ public class IndexSearcher {
    * Expert: returns a default Similarity instance.
    * In general, this method is only called to initialize searchers and writers.
    * User code and query implementations should respect
-   * {@link IndexSearcher#getSimilarity()}.
+   * {@link IndexSearcher#getSimilarity(boolean)}.
    * @lucene.internal
    */
   public static Similarity getDefaultSimilarity() {
@@ -274,8 +330,15 @@ public class IndexSearcher {
     this.similarity = similarity;
   }
 
-  public Similarity getSimilarity() {
-    return similarity;
+  /** Expert: Get the {@link Similarity} to use to compute scores. When
+   *  {@code needsScores} is {@code false}, this method will return a simple
+   *  {@link Similarity} that does not leverage scoring factors such as norms.
+   *  When {@code needsScores} is {@code true}, this returns the
+   *  {@link Similarity} that has been set through {@link #setSimilarity(Similarity)}
+   *  or the {@link #getDefaultSimilarity()} default {@link Similarity} if none
+   *  has been set explicitely. */
+  public Similarity getSimilarity(boolean needsScores) {
+    return needsScores ? similarity : NON_SCORING_SIMILARITY;
   }
   
   /** @lucene.internal
@@ -290,6 +353,29 @@ public class IndexSearcher {
    * Count how many documents match the given query.
    */
   public int count(Query query) throws IOException {
+    query = rewrite(query);
+    while (true) {
+      // remove wrappers that don't matter for counts
+      if (query instanceof ConstantScoreQuery) {
+        query = ((ConstantScoreQuery) query).getQuery();
+      } else {
+        break;
+      }
+    }
+
+    // some counts can be computed in constant time
+    if (query instanceof MatchAllDocsQuery) {
+      return reader.numDocs();
+    } else if (query instanceof TermQuery && reader.hasDeletions() == false) {
+      Term term = ((TermQuery) query).getTerm();
+      int count = 0;
+      for (LeafReaderContext leaf : reader.leaves()) {
+        count += leaf.reader().docFreq(term);
+      }
+      return count;
+    }
+
+    // general case: create a collecor and count matches
     final CollectorManager<TotalHitCountCollector, Integer> collectorManager = new CollectorManager<TotalHitCountCollector, Integer>() {
 
       @Override
@@ -708,10 +794,10 @@ public class IndexSearcher {
         // continue with the following leaf
         continue;
       }
-      BulkScorer scorer = weight.bulkScorer(ctx, ctx.reader().getLiveDocs());
+      BulkScorer scorer = weight.bulkScorer(ctx);
       if (scorer != null) {
         try {
-          scorer.score(leafCollector);
+          scorer.score(leafCollector, ctx.reader().getLiveDocs());
         } catch (CollectionTerminatedException e) {
           // collection was terminated prematurely
           // continue with the following leaf
@@ -761,7 +847,10 @@ public class IndexSearcher {
     int n = ReaderUtil.subIndex(doc, leafContexts);
     final LeafReaderContext ctx = leafContexts.get(n);
     int deBasedDoc = doc - ctx.docBase;
-    
+    final Bits liveDocs = ctx.reader().getLiveDocs();
+    if (liveDocs != null && liveDocs.get(deBasedDoc) == false) {
+      return Explanation.noMatch("Document " + doc + " is deleted");
+    }
     return weight.explain(ctx, deBasedDoc);
   }
 
@@ -776,7 +865,7 @@ public class IndexSearcher {
     query = rewrite(query);
     Weight weight = createWeight(query, needsScores);
     float v = weight.getValueForNormalization();
-    float norm = getSimilarity().queryNorm(v);
+    float norm = getSimilarity(needsScores).queryNorm(v);
     if (Float.isInfinite(norm) || Float.isNaN(norm)) {
       norm = 1.0f;
     }

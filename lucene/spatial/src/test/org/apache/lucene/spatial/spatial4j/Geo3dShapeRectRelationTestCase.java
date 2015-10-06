@@ -22,18 +22,21 @@ import java.util.List;
 import java.util.Random;
 
 import com.carrotsearch.randomizedtesting.RandomizedContext;
+import com.spatial4j.core.TestLog;
 import com.spatial4j.core.context.SpatialContext;
 import com.spatial4j.core.distance.DistanceUtils;
+import com.spatial4j.core.shape.Circle;
 import com.spatial4j.core.shape.Point;
-import org.apache.lucene.spatial.spatial4j.geo3d.Bounds;
-import org.apache.lucene.spatial.spatial4j.geo3d.GeoBBox;
-import org.apache.lucene.spatial.spatial4j.geo3d.GeoBBoxFactory;
-import org.apache.lucene.spatial.spatial4j.geo3d.GeoCircle;
-import org.apache.lucene.spatial.spatial4j.geo3d.GeoPath;
-import org.apache.lucene.spatial.spatial4j.geo3d.GeoPoint;
-import org.apache.lucene.spatial.spatial4j.geo3d.GeoPolygonFactory;
-import org.apache.lucene.spatial.spatial4j.geo3d.GeoShape;
-import org.apache.lucene.spatial.spatial4j.geo3d.PlanetModel;
+import com.spatial4j.core.shape.RectIntersectionTestHelper;
+import org.apache.lucene.geo3d.LatLonBounds;
+import org.apache.lucene.geo3d.GeoBBox;
+import org.apache.lucene.geo3d.GeoBBoxFactory;
+import org.apache.lucene.geo3d.GeoStandardCircle;
+import org.apache.lucene.geo3d.GeoPath;
+import org.apache.lucene.geo3d.GeoPoint;
+import org.apache.lucene.geo3d.GeoPolygonFactory;
+import org.apache.lucene.geo3d.GeoShape;
+import org.apache.lucene.geo3d.PlanetModel;
 import org.junit.Rule;
 import org.junit.Test;
 
@@ -43,7 +46,7 @@ public abstract class Geo3dShapeRectRelationTestCase extends RandomizedShapeTest
   protected final static double RADIANS_PER_DEGREE = Math.PI/180.0;
 
   @Rule
-  public final LogRule testLog = LogRule.instance;
+  public final TestLog testLog = TestLog.instance;
 
   protected static Random random() {
     return RandomizedContext.current().getRandom();
@@ -57,56 +60,79 @@ public abstract class Geo3dShapeRectRelationTestCase extends RandomizedShapeTest
   }
 
   protected GeoBBox getBoundingBox(final GeoShape path) {
-      Bounds bounds = path.getBounds(null);
+    LatLonBounds bounds = new LatLonBounds();
+    path.getBounds(bounds);
 
-      double leftLon;
-      double rightLon;
-      if (bounds.checkNoLongitudeBound()) {
-        leftLon = -Math.PI;
-        rightLon = Math.PI;
-      } else {
-        leftLon = bounds.getLeftLongitude().doubleValue();
-        rightLon = bounds.getRightLongitude().doubleValue();
-      }
-      double minLat;
-      if (bounds.checkNoBottomLatitudeBound()) {
-        minLat = -Math.PI * 0.5;
-      } else {
-        minLat = bounds.getMinLatitude().doubleValue();
-      }
-      double maxLat;
-      if (bounds.checkNoTopLatitudeBound()) {
-        maxLat = Math.PI * 0.5;
-      } else {
-        maxLat = bounds.getMaxLatitude().doubleValue();
-      }
-      return GeoBBoxFactory.makeGeoBBox(planetModel, maxLat, minLat, leftLon, rightLon);
+    double leftLon;
+    double rightLon;
+    if (bounds.checkNoLongitudeBound()) {
+      leftLon = -Math.PI;
+      rightLon = Math.PI;
+    } else {
+      leftLon = bounds.getLeftLongitude().doubleValue();
+      rightLon = bounds.getRightLongitude().doubleValue();
+    }
+    double minLat;
+    if (bounds.checkNoBottomLatitudeBound()) {
+      minLat = -Math.PI * 0.5;
+    } else {
+      minLat = bounds.getMinLatitude().doubleValue();
+    }
+    double maxLat;
+    if (bounds.checkNoTopLatitudeBound()) {
+      maxLat = Math.PI * 0.5;
+    } else {
+      maxLat = bounds.getMaxLatitude().doubleValue();
+    }
+    return GeoBBoxFactory.makeGeoBBox(planetModel, maxLat, minLat, leftLon, rightLon);
+  }
+
+  abstract class Geo3dRectIntersectionTestHelper extends RectIntersectionTestHelper<Geo3dShape> {
+
+    public Geo3dRectIntersectionTestHelper(SpatialContext ctx) {
+      super(ctx);
+    }
+
+    //20 times each -- should be plenty
+
+    protected int getContainsMinimum(int laps) {
+      return 20;
+    }
+
+    protected int getIntersectsMinimum(int laps) {
+      return 20;
+    }
+
+    // producing "within" cases in Geo3D based on our random shapes doesn't happen often. It'd be nice to increase this.
+    protected int getWithinMinimum(int laps) {
+      return 2;
+    }
+
+    protected int getDisjointMinimum(int laps) {
+      return 20;
+    }
+
+    protected int getBoundingMinimum(int laps) {
+      return 20;
+    }
   }
 
   @Test
   public void testGeoCircleRect() {
-    new RectIntersectionTestHelper<Geo3dShape>(ctx) {
+    new Geo3dRectIntersectionTestHelper(ctx) {
 
       @Override
       protected Geo3dShape generateRandomShape(Point nearP) {
-        while (true) {
-          final int circleRadius = random().nextInt(179) + 1;//no 0-radius
-          final Point point = nearP;
-          try {
-            final GeoShape shape = new GeoCircle(planetModel, point.getY() * DEGREES_TO_RADIANS, point.getX() * DEGREES_TO_RADIANS,
-                circleRadius * DEGREES_TO_RADIANS);
-            return new Geo3dShape(planetModel, shape, ctx);
-          } catch (IllegalArgumentException e) {
-            // This is what happens when we create a shape that is invalid.  Although it is conceivable that there are cases where
-            // the exception is thrown incorrectly, we aren't going to be able to do that in this random test.
-            continue;
-          }
-        }
+        final int circleRadius = 180 - random().nextInt(180);//no 0-radius
+        final Point point = nearP;
+        final GeoShape shape = new GeoStandardCircle(planetModel, point.getY() * DEGREES_TO_RADIANS, point.getX() * DEGREES_TO_RADIANS,
+            circleRadius * DEGREES_TO_RADIANS);
+        return new Geo3dShape(planetModel, shape, ctx);
       }
 
       @Override
       protected Point randomPointInEmptyShape(Geo3dShape shape) {
-        GeoPoint geoPoint = ((GeoCircle)shape.shape).center;
+        GeoPoint geoPoint = ((GeoStandardCircle)shape.shape).getCenter();
         return geoPointToSpatial4jPoint(geoPoint);
       }
 
@@ -115,7 +141,7 @@ public abstract class Geo3dShapeRectRelationTestCase extends RandomizedShapeTest
 
   @Test
   public void testGeoBBoxRect() {
-    new RectIntersectionTestHelper<Geo3dShape>(ctx) {
+    new Geo3dRectIntersectionTestHelper(ctx) {
 
       @Override
       protected boolean isRandomShapeRectangular() {
@@ -149,23 +175,22 @@ public abstract class Geo3dShapeRectRelationTestCase extends RandomizedShapeTest
 
   @Test
   public void testGeoPolygonRect() {
-    new RectIntersectionTestHelper<Geo3dShape>(ctx) {
+    new Geo3dRectIntersectionTestHelper(ctx) {
 
       @Override
       protected Geo3dShape generateRandomShape(Point nearP) {
         final Point centerPoint = randomPoint();
         final int maxDistance = random().nextInt(160) + 20;
+        final Circle pointZone = ctx.makeCircle(centerPoint, maxDistance);
         final int vertexCount = random().nextInt(3) + 3;
         while (true) {
           final List<GeoPoint> geoPoints = new ArrayList<>();
           while (geoPoints.size() < vertexCount) {
-            final Point point = randomPoint();
-            if (ctx.getDistCalc().distance(point,centerPoint) > maxDistance)
-              continue;
+            final Point point = randomPointIn(pointZone);
             final GeoPoint gPt = new GeoPoint(planetModel, point.getY() * DEGREES_TO_RADIANS, point.getX() * DEGREES_TO_RADIANS);
             geoPoints.add(gPt);
           }
-          final int convexPointIndex = random().nextInt(vertexCount);       //If we get this wrong, hopefully we get IllegalArgumentException
+          final int convexPointIndex = random().nextInt(vertexCount); //If we get this wrong, hopefully we get IllegalArgumentException
           try {
             final GeoShape shape = GeoPolygonFactory.makeGeoPolygon(planetModel, geoPoints, convexPointIndex);
             return new Geo3dShape(planetModel, shape, ctx);
@@ -184,8 +209,8 @@ public abstract class Geo3dShapeRectRelationTestCase extends RandomizedShapeTest
 
       @Override
       protected int getWithinMinimum(int laps) {
-        // Long/thin so only 10% of the usual figure
-        return laps/10000;
+        // Long/thin so lets just find 1.
+        return 1;
       }
 
     }.testRelateWithRectangle();
@@ -193,24 +218,21 @@ public abstract class Geo3dShapeRectRelationTestCase extends RandomizedShapeTest
 
   @Test
   public void testGeoPathRect() {
-    new RectIntersectionTestHelper<Geo3dShape>(ctx) {
+    new Geo3dRectIntersectionTestHelper(ctx) {
 
       @Override
       protected Geo3dShape generateRandomShape(Point nearP) {
         final Point centerPoint = randomPoint();
         final int maxDistance = random().nextInt(160) + 20;
+        final Circle pointZone = ctx.makeCircle(centerPoint, maxDistance);
         final int pointCount = random().nextInt(5) + 1;
         final double width = (random().nextInt(89)+1) * DEGREES_TO_RADIANS;
         while (true) {
           try {
             final GeoPath path = new GeoPath(planetModel, width);
-            int i = 0;
-            while (i < pointCount) {
-              final Point nextPoint = randomPoint();
-              if (ctx.getDistCalc().distance(nextPoint,centerPoint) > maxDistance)
-                continue;
+            for (int i = 0; i < pointCount; i++) {
+              final Point nextPoint = randomPointIn(pointZone);
               path.addPoint(nextPoint.getY() * DEGREES_TO_RADIANS, nextPoint.getX() * DEGREES_TO_RADIANS);
-              i++;
             }
             path.done();
             return new Geo3dShape(planetModel, path, ctx);
@@ -229,8 +251,8 @@ public abstract class Geo3dShapeRectRelationTestCase extends RandomizedShapeTest
 
       @Override
       protected int getWithinMinimum(int laps) {
-        // Long/thin so only 10% of the usual figure
-        return laps/10000;
+        // Long/thin so lets just find 1.
+        return 1;
       }
 
     }.testRelateWithRectangle();

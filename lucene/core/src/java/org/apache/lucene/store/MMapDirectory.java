@@ -19,6 +19,7 @@ package org.apache.lucene.store;
  
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.MappedByteBuffer;
 import java.nio.channels.ClosedChannelException; // javadoc @link
 import java.nio.channels.FileChannel;
 import java.nio.channels.FileChannel.MapMode;
@@ -34,6 +35,7 @@ import java.lang.reflect.Method;
 
 import org.apache.lucene.store.ByteBufferIndexInput.BufferCleaner;
 import org.apache.lucene.util.Constants;
+import org.apache.lucene.util.SuppressForbidden;
 
 /** File-based {@link Directory} implementation that uses
  *  mmap for reading, and {@link
@@ -86,6 +88,8 @@ import org.apache.lucene.util.Constants;
  */
 public class MMapDirectory extends FSDirectory {
   private boolean useUnmapHack = UNMAP_SUPPORTED;
+  private boolean preload;
+
   /** 
    * Default max chunk size.
    * @see #MMapDirectory(Path, LockFactory, int)
@@ -161,9 +165,12 @@ public class MMapDirectory extends FSDirectory {
    */
   public static final boolean UNMAP_SUPPORTED = AccessController.doPrivileged(new PrivilegedAction<Boolean>() {
     @Override
+    @SuppressForbidden(reason = "Java 9 Jigsaw whitelists access to sun.misc.Cleaner, so setAccessible works")
     public Boolean run() {
       try {
-        Class.forName("java.nio.DirectByteBuffer").getMethod("cleaner");
+        Class<?> clazz = Class.forName("java.nio.DirectByteBuffer");
+        Method method = clazz.getMethod("cleaner");
+        method.setAccessible(true);
         return true;
       } catch (Exception e) {
         return false;
@@ -195,6 +202,24 @@ public class MMapDirectory extends FSDirectory {
    */
   public boolean getUseUnmap() {
     return useUnmapHack;
+  }
+  
+  /**
+   * Set to {@code true} to ask mapped pages to be loaded
+   * into physical memory on init. The behavior is best-effort 
+   * and operating system dependent.
+   * @see MappedByteBuffer#load
+   */
+  public void setPreload(boolean preload) {
+    this.preload = preload;
+  }
+  
+  /**
+   * Returns {@code true} if mapped pages should be loaded.
+   * @see #setPreload
+   */
+  public boolean getPreload() {
+    return preload;
   }
   
   /**
@@ -237,11 +262,16 @@ public class MMapDirectory extends FSDirectory {
           ? chunkSize
               : (length - bufferStart)
           );
+      MappedByteBuffer buffer;
       try {
-        buffers[bufNr] = fc.map(MapMode.READ_ONLY, offset + bufferStart, bufSize);
+        buffer = fc.map(MapMode.READ_ONLY, offset + bufferStart, bufSize);
       } catch (IOException ioe) {
         throw convertMapFailedIOException(ioe, resourceDescription, bufSize);
       }
+      if (preload) {
+        buffer.load();
+      }
+      buffers[bufNr] = buffer;
       bufferStart += bufSize;
     }
     
@@ -285,6 +315,7 @@ public class MMapDirectory extends FSDirectory {
       try {
         AccessController.doPrivileged(new PrivilegedExceptionAction<Void>() {
           @Override
+          @SuppressForbidden(reason = "Java 9 Jigsaw whitelists access to sun.misc.Cleaner, so setAccessible works")
           public Void run() throws Exception {
             final Method getCleanerMethod = buffer.getClass()
               .getMethod("cleaner");

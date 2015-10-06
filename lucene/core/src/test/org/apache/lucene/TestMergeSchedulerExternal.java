@@ -67,7 +67,7 @@ public class TestMergeSchedulerExternal extends LuceneTestCase {
       excCalled = true;
     }
 
-    ;@Override
+    @Override
     protected void doMerge(IndexWriter writer, MergePolicy.OneMerge merge) throws IOException {
       mergeCalled = true;
       super.doMerge(writer, merge);
@@ -79,8 +79,9 @@ public class TestMergeSchedulerExternal extends LuceneTestCase {
     public void eval(MockDirectoryWrapper dir)  throws IOException {
       StackTraceElement[] trace = new Exception().getStackTrace();
       for (int i = 0; i < trace.length; i++) {
-        if ("doMerge".equals(trace[i].getMethodName()))
+        if ("doMerge".equals(trace[i].getMethodName())) {
           throw new IOException("now failing during merge");
+        }
       }
     }
   }
@@ -99,11 +100,16 @@ public class TestMergeSchedulerExternal extends LuceneTestCase {
         .setMergePolicy(newLogMergePolicy()));
     LogMergePolicy logMP = (LogMergePolicy) writer.getConfig().getMergePolicy();
     logMP.setMergeFactor(10);
-    for(int i=0;i<20;i++)
+    for(int i=0;i<20;i++) {
       writer.addDocument(doc);
+    }
 
-    ((MyMergeScheduler) writer.getConfig().getMergeScheduler()).sync();
-    writer.close();
+    try {
+      ((MyMergeScheduler) writer.getConfig().getMergeScheduler()).sync();
+    } catch (IllegalStateException ise) {
+      // OK
+    }
+    writer.rollback();
     
     assertTrue(mergeThreadCreated);
     assertTrue(mergeCalled);

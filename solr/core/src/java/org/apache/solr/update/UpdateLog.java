@@ -61,6 +61,7 @@ import org.apache.solr.update.processor.DistributedUpdateProcessor;
 import org.apache.solr.update.processor.UpdateRequestProcessor;
 import org.apache.solr.update.processor.UpdateRequestProcessorChain;
 import org.apache.solr.util.DefaultSolrThreadFactory;
+import org.apache.solr.util.RTimer;
 import org.apache.solr.util.RefCounted;
 import org.apache.solr.util.plugin.PluginInfoInitialized;
 import org.slf4j.Logger;
@@ -901,7 +902,7 @@ public class UpdateLog implements PluginInfoInitialized {
       }
 
       try {
-        ExecutorUtil.shutdownNowAndAwaitTermination(recoveryExecutor);
+        ExecutorUtil.shutdownAndAwaitTermination(recoveryExecutor);
       } catch (Exception e) {
         SolrException.log(log, e);
       }
@@ -1545,6 +1546,10 @@ public class UpdateLog implements PluginInfoInitialized {
     }
   }
 
+  public Long getCurrentMaxVersion() {
+    return maxVersionFromIndex;
+  }
+
   // this method is primarily used for unit testing and is not part of the public API for this class
   Long getMaxVersionFromIndex() {
     if (maxVersionFromIndex == null && versionInfo != null) {
@@ -1567,7 +1572,7 @@ public class UpdateLog implements PluginInfoInitialized {
    */
   protected Long seedBucketsWithHighestVersion(SolrIndexSearcher newSearcher, VersionInfo versions) {
     Long highestVersion = null;
-    long startMs = System.currentTimeMillis();
+    final RTimer timer = new RTimer();
 
     RecentUpdates recentUpdates = null;
     try {
@@ -1592,15 +1597,14 @@ public class UpdateLog implements PluginInfoInitialized {
         recentUpdates.close();
     }
 
-    long tookMs = (System.currentTimeMillis() - startMs);
-    log.info("Took {} ms to seed version buckets with highest version {}",
-        tookMs, String.valueOf(highestVersion));
+    log.info("Took {}ms to seed version buckets with highest version {}",
+        timer.getTime(), String.valueOf(highestVersion));
 
     return highestVersion;
   }
 
-  public void onFirstSearcher(SolrIndexSearcher newSearcher) {
-    log.info("On first searcher opened, looking up max value of version field");
+  public void seedBucketsWithHighestVersion(SolrIndexSearcher newSearcher) {
+    log.info("Looking up max value of version field to seed version buckets");
     versionInfo.blockUpdates();
     try {
       maxVersionFromIndex = seedBucketsWithHighestVersion(newSearcher, versionInfo);

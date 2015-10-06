@@ -29,6 +29,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.AutomatonQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -48,11 +49,13 @@ import org.apache.solr.analysis.ReversedWildcardFilterFactory;
 import org.apache.solr.analysis.TokenizerChain;
 import org.apache.solr.common.SolrException;
 import org.apache.solr.parser.QueryParser.Operator;
+import org.apache.solr.query.FilterQuery;
 import org.apache.solr.schema.FieldType;
 import org.apache.solr.schema.IndexSchema;
 import org.apache.solr.schema.SchemaField;
 import org.apache.solr.schema.TextField;
 import org.apache.solr.search.QParser;
+import org.apache.solr.search.SolrConstantScoreQuery;
 import org.apache.solr.search.SyntaxError;
 
 /** This class is overridden by QueryParser in QueryParser.jj
@@ -149,7 +152,7 @@ public abstract class SolrQueryParserBase extends QueryBuilder {
     try {
       // TopLevelQuery is a Query followed by the end-of-input (EOF)
       Query res = TopLevelQuery(null);  // pass null so we can tell later if an explicit field was provided or not
-      return res!=null ? res : newBooleanQuery(false);
+      return res!=null ? res : newBooleanQuery(false).build();
     }
     catch (ParseException | TokenMgrError tme) {
       throw new SyntaxError("Cannot parse '" +query+ "': " + tme.getMessage(), tme);
@@ -321,7 +324,7 @@ public abstract class SolrQueryParserBase extends QueryBuilder {
     if (clauses.size() > 0 && conj == CONJ_AND) {
       BooleanClause c = clauses.get(clauses.size()-1);
       if (!c.isProhibited())
-        c.setOccur(BooleanClause.Occur.MUST);
+        clauses.set(clauses.size() - 1, new BooleanClause(c.getQuery(), BooleanClause.Occur.MUST));
     }
 
     if (clauses.size() > 0 && operator == AND_OPERATOR && conj == CONJ_OR) {
@@ -331,7 +334,7 @@ public abstract class SolrQueryParserBase extends QueryBuilder {
       // this modification a OR b would parsed as +a OR b
       BooleanClause c = clauses.get(clauses.size()-1);
       if (!c.isProhibited())
-        c.setOccur(BooleanClause.Occur.SHOULD);
+        clauses.set(clauses.size() - 1, new BooleanClause(c.getQuery(), BooleanClause.Occur.SHOULD));
     }
 
     // We might have been passed a null query; the term might have been
@@ -387,7 +390,15 @@ public abstract class SolrQueryParserBase extends QueryBuilder {
     if (subQParser == null) {
 
       if (query instanceof PhraseQuery) {
-        ((PhraseQuery) query).setSlop(slop);
+        PhraseQuery pq = (PhraseQuery) query;
+        Term[] terms = pq.getTerms();
+        int[] positions = pq.getPositions();
+        PhraseQuery.Builder builder = new PhraseQuery.Builder();
+        for (int i = 0; i < terms.length; ++i) {
+          builder.add(terms[i], positions[i]);
+        }
+        builder.setSlop(slop);
+        query = builder.build();
       }
       if (query instanceof MultiPhraseQuery) {
         ((MultiPhraseQuery) query).setSlop(slop);
@@ -500,11 +511,11 @@ public abstract class SolrQueryParserBase extends QueryBuilder {
     if (clauses.size()==0) {
       return null; // all clause words were filtered away by the analyzer.
     }
-    BooleanQuery query = newBooleanQuery(disableCoord);
+    BooleanQuery.Builder query = newBooleanQuery(disableCoord);
     for(final BooleanClause clause: clauses) {
       query.add(clause);
     }
-    return query;
+    return query.build();
   }
 
 
@@ -557,25 +568,21 @@ public abstract class SolrQueryParserBase extends QueryBuilder {
     if (boost == null || boost.image.length()==0 || q == null) {
       return q;
     }
-
     if (boost.image.charAt(0) == '=') {
       // syntax looks like foo:x^=3
       float val = Float.parseFloat(boost.image.substring(1));
       Query newQ = q;
-      if (// q instanceof FilterQuery ||  // TODO: fix this when FilterQuery is introduced to avoid needless wrapping: SOLR-7219
-          q instanceof ConstantScoreQuery) {
-        newQ.setBoost(val);
+      if (q instanceof ConstantScoreQuery || q instanceof SolrConstantScoreQuery) {
+        // skip
       } else {
         newQ = new ConstantScoreQuery(q);
-        newQ.setBoost(val);
       }
-      return newQ;
+      return new BoostQuery(newQ, val);
     }
 
     float boostVal = Float.parseFloat(boost.image);
-    q.setBoost(q.getBoost() * boostVal);
 
-    return q;
+    return new BoostQuery(q, boostVal);
   }
 
 
@@ -840,6 +847,11 @@ public abstract class SolrQueryParserBase extends QueryBuilder {
   protected Query getLocalParams(String qfield, String lparams) throws SyntaxError {
     QParser nested = parser.subQuery(lparams, null);
     return nested.getQuery();
+  }
+
+  // called from parser for filter(query)
+  Query getFilter(Query q) {
+    return new FilterQuery(q);
   }
 
 }

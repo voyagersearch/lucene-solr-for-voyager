@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.
@@ -244,6 +244,7 @@ public class SolrOutputFormat<K, V> extends FileOutputFormat<K, V> {
     
     ZipEntry ze = new ZipEntry("solr.xml");
     zos.putNextEntry(ze);
+    zos.write("<solr></solr>".getBytes("UTF-8"));
     zos.flush();
     zos.closeEntry();
     zos.close();

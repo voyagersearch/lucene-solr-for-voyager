@@ -33,7 +33,6 @@ import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.similarities.Similarity.SimScorer;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.util.ArrayUtil;
-import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PriorityQueue;
 import org.apache.lucene.util.ToStringUtils;
@@ -55,7 +54,7 @@ public class MultiPhraseQuery extends Query {
   private int slop = 0;
 
   /** Sets the phrase slop for this query.
-   * @see PhraseQuery#setSlop(int)
+   * @see PhraseQuery#getSlop()
    */
   public void setSlop(int s) {
     if (s < 0) {
@@ -70,14 +69,11 @@ public class MultiPhraseQuery extends Query {
   public int getSlop() { return slop; }
 
   /** Add a single term at the next position in the phrase.
-   * @see PhraseQuery#add(Term)
    */
   public void add(Term term) { add(new Term[]{term}); }
 
   /** Add multiple terms at the next position in the phrase.  Any of the terms
    * may match.
-   *
-   * @see PhraseQuery#add(Term)
    */
   public void add(Term[] terms) {
     int position = 0;
@@ -89,8 +85,6 @@ public class MultiPhraseQuery extends Query {
 
   /**
    * Allows to specify the relative position of terms within the phrase.
-   * 
-   * @see PhraseQuery#add(Term, int)
    */
   public void add(Term[] terms, int position) {
     Objects.requireNonNull(terms, "Term array must not be null");
@@ -138,7 +132,7 @@ public class MultiPhraseQuery extends Query {
       throws IOException {
       super(MultiPhraseQuery.this);
       this.needsScores = needsScores;
-      this.similarity = searcher.getSimilarity();
+      this.similarity = searcher.getSimilarity(needsScores);
       final IndexReaderContext context = searcher.getTopReaderContext();
       
       // compute idf
@@ -153,7 +147,7 @@ public class MultiPhraseQuery extends Query {
           allTermStats.add(searcher.termStatistics(term, termContext));
         }
       }
-      stats = similarity.computeWeight(getBoost(),
+      stats = similarity.computeWeight(
           searcher.collectionStatistics(field), 
           allTermStats.toArray(new TermStatistics[allTermStats.size()]));
     }
@@ -173,15 +167,14 @@ public class MultiPhraseQuery extends Query {
     }
 
     @Override
-    public void normalize(float queryNorm, float topLevelBoost) {
-      stats.normalize(queryNorm, topLevelBoost);
+    public void normalize(float queryNorm, float boost) {
+      stats.normalize(queryNorm, boost);
     }
 
     @Override
-    public Scorer scorer(LeafReaderContext context, Bits acceptDocs) throws IOException {
+    public Scorer scorer(LeafReaderContext context) throws IOException {
       assert !termArrays.isEmpty();
       final LeafReader reader = context.reader();
-      final Bits liveDocs = acceptDocs;
       
       PhraseQuery.PostingsAndFreq[] postingsFreqs = new PhraseQuery.PostingsAndFreq[termArrays.size()];
 
@@ -206,7 +199,7 @@ public class MultiPhraseQuery extends Query {
           TermState termState = termContexts.get(term).get(context.ord);
           if (termState != null) {
             termsEnum.seekExact(term.bytes(), termState);
-            postings.add(termsEnum.postings(liveDocs, null, PostingsEnum.POSITIONS));
+            postings.add(termsEnum.postings(null, PostingsEnum.POSITIONS));
           }
         }
         
@@ -238,7 +231,7 @@ public class MultiPhraseQuery extends Query {
 
     @Override
     public Explanation explain(LeafReaderContext context, int doc) throws IOException {
-      Scorer scorer = scorer(context, context.reader().getLiveDocs());
+      Scorer scorer = scorer(context);
       if (scorer != null) {
         int newDoc = scorer.advance(doc);
         if (newDoc == doc) {
@@ -258,21 +251,22 @@ public class MultiPhraseQuery extends Query {
   }
 
   @Override
-  public Query rewrite(IndexReader reader) {
+  public Query rewrite(IndexReader reader) throws IOException {
+    if (getBoost() != 1f) {
+      return super.rewrite(reader);
+    }
     if (termArrays.isEmpty()) {
-      BooleanQuery bq = new BooleanQuery();
-      bq.setBoost(getBoost());
-      return bq;
+      return new MatchNoDocsQuery();
     } else if (termArrays.size() == 1) {                 // optimize one-term case
       Term[] terms = termArrays.get(0);
-      BooleanQuery boq = new BooleanQuery(true);
+      BooleanQuery.Builder builder = new BooleanQuery.Builder();
+      builder.setDisableCoord(true);
       for (int i=0; i<terms.length; i++) {
-        boq.add(new TermQuery(terms[i]), BooleanClause.Occur.SHOULD);
+        builder.add(new TermQuery(terms[i]), BooleanClause.Occur.SHOULD);
       }
-      boq.setBoost(getBoost());
-      return boq;
+      return builder.build();
     } else {
-      return this;
+      return super.rewrite(reader);
     }
   }
 
@@ -328,7 +322,6 @@ public class MultiPhraseQuery extends Query {
     }
 
     buffer.append(ToStringUtils.boost(getBoost()));
-
     return buffer.toString();
   }
 

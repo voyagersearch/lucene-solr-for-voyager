@@ -17,8 +17,6 @@
 
 package org.apache.solr.handler.component;
 
-import com.carrotsearch.hppc.IntIntOpenHashMap;
-
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
@@ -32,6 +30,7 @@ import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.FieldComparatorSource;
@@ -72,6 +71,8 @@ import org.slf4j.LoggerFactory;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 import org.xml.sax.InputSource;
+
+import com.carrotsearch.hppc.IntIntHashMap;
 
 import javax.xml.xpath.XPath;
 import javax.xml.xpath.XPathConstants;
@@ -142,8 +143,7 @@ public class QueryElevationComponent extends SearchComponent implements SolrCore
       this.ids = new HashSet<>();
       this.excludeIds = new HashSet<>();
 
-      this.include = new BooleanQuery();
-      this.include.setBoost(0);
+      BooleanQuery.Builder include = new BooleanQuery.Builder();
       this.priority = new HashMap<>();
       int max = elevate.size() + 5;
       for (String id : elevate) {
@@ -153,6 +153,7 @@ public class QueryElevationComponent extends SearchComponent implements SolrCore
         include.add(tq, BooleanClause.Occur.SHOULD);
         this.priority.put(new BytesRef(id), max--);
       }
+      this.include = include.build();
 
       if (exclude == null || exclude.isEmpty()) {
         this.exclude = null;
@@ -419,11 +420,12 @@ public class QueryElevationComponent extends SearchComponent implements SolrCore
       // Change the query to insert forced documents
       if (exclusive == true) {
         //we only want these results
-        rb.setQuery(booster.include);
+        rb.setQuery(new BoostQuery(booster.include, 0f));
       } else {
-        BooleanQuery newq = new BooleanQuery(true);
+        BooleanQuery.Builder newq = new BooleanQuery.Builder();
+        newq.setDisableCoord(true);
         newq.add(query, BooleanClause.Occur.SHOULD);
-        newq.add(booster.include, BooleanClause.Occur.SHOULD);
+        newq.add(new BoostQuery(booster.include, 0f), BooleanClause.Occur.SHOULD);
         if (booster.exclude != null) {
           if (markExcludes == false) {
             for (TermQuery tq : booster.exclude) {
@@ -435,7 +437,7 @@ public class QueryElevationComponent extends SearchComponent implements SolrCore
             rb.req.getContext().put(EXCLUDED, booster.excludeIds);
           }
         }
-        rb.setQuery(newq);
+        rb.setQuery(newq.build());
       }
 
       ElevationComparatorSource comparator = new ElevationComparatorSource(booster);
@@ -534,16 +536,16 @@ public class QueryElevationComponent extends SearchComponent implements SolrCore
   }
 
 
-  public static IntIntOpenHashMap getBoostDocs(SolrIndexSearcher indexSearcher, Map<BytesRef, Integer>boosted, Map context) throws IOException {
+  public static IntIntHashMap getBoostDocs(SolrIndexSearcher indexSearcher, Map<BytesRef, Integer>boosted, Map context) throws IOException {
 
-    IntIntOpenHashMap boostDocs = null;
+    IntIntHashMap boostDocs = null;
 
     if(boosted != null) {
 
       //First see if it's already in the request context. Could have been put there
       //by another caller.
       if(context != null) {
-        boostDocs = (IntIntOpenHashMap)context.get(BOOSTED_DOCIDS);
+        boostDocs = (IntIntHashMap) context.get(BOOSTED_DOCIDS);
       }
 
       if(boostDocs != null) {
@@ -553,13 +555,13 @@ public class QueryElevationComponent extends SearchComponent implements SolrCore
 
       SchemaField idField = indexSearcher.getSchema().getUniqueKeyField();
       String fieldName = idField.getName();
-      HashSet<BytesRef> localBoosts = new HashSet(boosted.size()*2);
+      HashSet<BytesRef> localBoosts = new HashSet<>(boosted.size()*2);
       Iterator<BytesRef> boostedIt = boosted.keySet().iterator();
       while(boostedIt.hasNext()) {
         localBoosts.add(boostedIt.next());
       }
 
-      boostDocs = new IntIntOpenHashMap(boosted.size()*2);
+      boostDocs = new IntIntHashMap(boosted.size());
 
       List<LeafReaderContext>leaves = indexSearcher.getTopReaderContext().leaves();
       PostingsEnum postingsEnum = null;
@@ -573,8 +575,11 @@ public class QueryElevationComponent extends SearchComponent implements SolrCore
         while(it.hasNext()) {
           BytesRef ref = it.next();
           if(termsEnum.seekExact(ref)) {
-            postingsEnum = termsEnum.postings(liveDocs, postingsEnum);
+            postingsEnum = termsEnum.postings(postingsEnum);
             int doc = postingsEnum.nextDoc();
+            while (doc != PostingsEnum.NO_MORE_DOCS && liveDocs != null && liveDocs.get(doc) == false) {
+              doc = postingsEnum.nextDoc();
+            }
             if(doc != PostingsEnum.NO_MORE_DOCS) {
               //Found the document.
               int p = boosted.get(ref);
@@ -690,8 +695,11 @@ public class QueryElevationComponent extends SearchComponent implements SolrCore
         for (String id : elevations.ids) {
           term.copyChars(id);
           if (seen.contains(id) == false  && termsEnum.seekExact(term.get())) {
-            postingsEnum = termsEnum.postings(liveDocs, postingsEnum, PostingsEnum.NONE);
+            postingsEnum = termsEnum.postings(postingsEnum, PostingsEnum.NONE);
             int docId = postingsEnum.nextDoc();
+            while (docId != DocIdSetIterator.NO_MORE_DOCS && liveDocs != null && liveDocs.get(docId) == false) {
+              docId = postingsEnum.nextDoc();
+            }
             if (docId == DocIdSetIterator.NO_MORE_DOCS ) continue;  // must have been deleted
             termValues[ordSet.put(docId)] = term.toBytesRef();
             seen.add(id);

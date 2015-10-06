@@ -42,6 +42,7 @@ import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
@@ -101,15 +102,13 @@ public class TermsQueryTest extends LuceneTestCase {
         for (int j = 0; j < numQueryTerms; ++j) {
           queryTerms.add(allTerms.get(random().nextInt(allTerms.size())));
         }
-        final BooleanQuery bq = new BooleanQuery();
+        final BooleanQuery.Builder bq = new BooleanQuery.Builder();
         for (Term t : queryTerms) {
           bq.add(new TermQuery(t), Occur.SHOULD);
         }
-        final Query q1 = new ConstantScoreQuery(bq);
-        q1.setBoost(boost);
+        final Query q1 = new ConstantScoreQuery(bq.build());
         final Query q2 = new TermsQuery(queryTerms);
-        q2.setBoost(boost);
-        assertSameMatches(searcher, q1, q2, true);
+        assertSameMatches(searcher, new BoostQuery(q1, boost), new BoostQuery(q2, boost), true);
       }
 
       reader.close();
@@ -321,5 +320,10 @@ public class TermsQueryTest extends LuceneTestCase {
     assertEquals(fields.size(), counter.get());
     wrapped.close();
     dir.close();
+  }
+  
+  public void testBinaryToString() {
+    TermsQuery query = new TermsQuery(new Term("field", new BytesRef(new byte[] { (byte) 0xff, (byte) 0xfe })));
+    assertEquals("field:[ff fe]", query.toString());
   }
 }

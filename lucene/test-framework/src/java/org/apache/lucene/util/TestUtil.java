@@ -54,9 +54,9 @@ import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.asserting.AssertingCodec;
 import org.apache.lucene.codecs.blockterms.LuceneFixedGap;
 import org.apache.lucene.codecs.blocktreeords.BlockTreeOrdsPostingsFormat;
-import org.apache.lucene.codecs.lucene50.Lucene50Codec;
 import org.apache.lucene.codecs.lucene50.Lucene50DocValuesFormat;
 import org.apache.lucene.codecs.lucene50.Lucene50PostingsFormat;
+import org.apache.lucene.codecs.lucene53.Lucene53Codec;
 import org.apache.lucene.codecs.perfield.PerFieldDocValuesFormat;
 import org.apache.lucene.codecs.perfield.PerFieldPostingsFormat;
 import org.apache.lucene.document.BinaryDocValuesField;
@@ -271,7 +271,7 @@ public final class TestUtil {
     ByteArrayOutputStream bos = new ByteArrayOutputStream(1024);
     // TODO: actually use the dir's locking, unless test uses a special method?
     // some tests e.g. exception tests become much more complicated if they have to close the writer
-    try (CheckIndex checker = new CheckIndex(dir, NoLockFactory.INSTANCE.makeLock(dir, "bogus"))) {
+    try (CheckIndex checker = new CheckIndex(dir, NoLockFactory.INSTANCE.obtainLock(dir, "bogus"))) {
       checker.setCrossCheckTermVectors(crossCheckTermVectors);
       checker.setFailFast(failFast);
       checker.setInfoStream(new PrintStream(bos, false, IOUtils.UTF_8), false);
@@ -881,7 +881,7 @@ public final class TestUtil {
    * This may be different than {@link Codec#getDefault()} because that is randomized. 
    */
   public static Codec getDefaultCodec() {
-    return new Lucene50Codec();
+    return new Lucene53Codec();
   }
   
   /** 
@@ -1083,7 +1083,7 @@ public final class TestUtil {
   // Returns a DocsEnum, but randomly sometimes uses a
   // DocsAndFreqsEnum, DocsAndPositionsEnum.  Returns null
   // if field/term doesn't exist:
-  public static PostingsEnum docs(Random random, IndexReader r, String field, BytesRef term, Bits liveDocs, PostingsEnum reuse, int flags) throws IOException {
+  public static PostingsEnum docs(Random random, IndexReader r, String field, BytesRef term, PostingsEnum reuse, int flags) throws IOException {
     final Terms terms = MultiFields.getTerms(r, field);
     if (terms == null) {
       return null;
@@ -1092,11 +1092,11 @@ public final class TestUtil {
     if (!termsEnum.seekExact(term)) {
       return null;
     }
-    return docs(random, termsEnum, liveDocs, reuse, flags);
+    return docs(random, termsEnum, reuse, flags);
   }
 
   // Returns a PostingsEnum with random features available
-  public static PostingsEnum docs(Random random, TermsEnum termsEnum, Bits liveDocs, PostingsEnum reuse, int flags) throws IOException {
+  public static PostingsEnum docs(Random random, TermsEnum termsEnum, PostingsEnum reuse, int flags) throws IOException {
     // TODO: simplify this method? it would be easier to randomly either use the flags passed, or do the random selection,
     // FREQS should be part fo the random selection instead of outside on its own?
     if (random.nextBoolean()) {
@@ -1108,11 +1108,11 @@ public final class TestUtil {
           case 2: posFlags = PostingsEnum.PAYLOADS; break;
           default: posFlags = PostingsEnum.ALL; break;
         }
-        return termsEnum.postings(liveDocs, null, posFlags);
+        return termsEnum.postings(null, posFlags);
       }
       flags |= PostingsEnum.FREQS;
     }
-    return termsEnum.postings(liveDocs, reuse, flags);
+    return termsEnum.postings(reuse, flags);
   }
   
   public static CharSequence stringToCharSequence(String string, Random random) {
@@ -1202,24 +1202,6 @@ public final class TestUtil {
     }
   }
 
-  /**
-   * Returns a random string in the specified length range consisting 
-   * entirely of whitespace characters 
-   * @see #WHITESPACE_CHARACTERS
-   */
-  public static String randomWhitespace(Random r, int minLength, int maxLength) {
-    final int end = nextInt(r, minLength, maxLength);
-    StringBuilder out = new StringBuilder();
-    for (int i = 0; i < end; i++) {
-      int offset = nextInt(r, 0, WHITESPACE_CHARACTERS.length-1);
-      char c = WHITESPACE_CHARACTERS[offset];
-      // sanity check
-      Assert.assertTrue("Not really whitespace? (@"+offset+"): " + c, Character.isWhitespace(c));
-      out.append(c);
-    }
-    return out.toString();
-  }
-
   public static String randomAnalysisString(Random random, int maxLength, boolean simple) {
     assert maxLength >= 0;
 
@@ -1300,7 +1282,7 @@ public final class TestUtil {
     } else {
       try {
         return br.utf8ToString() + " " + br.toString();
-      } catch (IllegalArgumentException t) {
+      } catch (AssertionError | IllegalArgumentException t) {
         // If BytesRef isn't actually UTF8, or it's eg a
         // prefix of UTF8 that ends mid-unicode-char, we
         // fallback to hex:
@@ -1319,36 +1301,4 @@ public final class TestUtil {
     }
     return ram;
   }
-  
-  /** List of characters that match {@link Character#isWhitespace} */
-  public static final char[] WHITESPACE_CHARACTERS = new char[] {
-    // :TODO: is this list exhaustive?
-    '\u0009',
-    '\n',    
-    '\u000B',
-    '\u000C',
-    '\r',    
-    '\u001C',
-    '\u001D',
-    '\u001E',
-    '\u001F',
-    '\u0020',
-    // '\u0085', faild sanity check?
-    '\u1680',
-    '\u180E',
-    '\u2000',
-    '\u2001',
-    '\u2002',
-    '\u2003',
-    '\u2004',
-    '\u2005',
-    '\u2006',
-    '\u2008',
-    '\u2009',
-    '\u200A',
-    '\u2028',
-    '\u2029',
-    '\u205F',
-    '\u3000',
-  };
 }

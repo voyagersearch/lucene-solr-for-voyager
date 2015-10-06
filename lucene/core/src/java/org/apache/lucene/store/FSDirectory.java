@@ -17,7 +17,6 @@ package org.apache.lucene.store;
  * limitations under the License.
  */
 
-import java.io.FileOutputStream;
 import java.io.FilterOutputStream;
 import java.io.IOException;
 import java.nio.file.DirectoryStream;
@@ -118,6 +117,12 @@ public abstract class FSDirectory extends BaseDirectory {
 
   /** Create a new FSDirectory for the named location (ctor for subclasses).
    * The directory is created at the named location if it does not yet exist.
+   * 
+   * <p>{@code FSDirectory} resolves the given Path to a canonical /
+   * real path to ensure it can correctly lock the index directory and no other process
+   * can interfere with changing possible symlinks to the index directory inbetween.
+   * If you want to use symlinks and change them dynamically, close all
+   * {@code IndexWriters} and create a new {@code FSDirecory} instance.
    * @param path the path of the directory
    * @param lockFactory the lock factory to use, or null for the default
    * ({@link NativeFSLockFactory});
@@ -125,7 +130,10 @@ public abstract class FSDirectory extends BaseDirectory {
    */
   protected FSDirectory(Path path, LockFactory lockFactory) throws IOException {
     super(lockFactory);
-    Files.createDirectories(path);  // create directory, if it doesn't exist
+    // If only read access is permitted, createDirectories fails even if the directory already exists.
+    if (!Files.isDirectory(path)) {
+      Files.createDirectories(path);  // create directory, if it doesn't exist
+    }
     directory = path.toRealPath();
   }
 
@@ -133,6 +141,12 @@ public abstract class FSDirectory extends BaseDirectory {
    *  best implementation given the current environment.
    *  The directory returned uses the {@link NativeFSLockFactory}.
    *  The directory is created at the named location if it does not yet exist.
+   * 
+   * <p>{@code FSDirectory} resolves the given Path when calling this method to a canonical /
+   * real path to ensure it can correctly lock the index directory and no other process
+   * can interfere with changing possible symlinks to the index directory inbetween.
+   * If you want to use symlinks and change them dynamically, close all
+   * {@code IndexWriters} and create a new {@code FSDirecory} instance.
    *
    *  <p>Currently this returns {@link MMapDirectory} for Linux, MacOSX, Solaris,
    *  and Windows 64-bit JREs, {@link NIOFSDirectory} for other
@@ -253,7 +267,7 @@ public abstract class FSDirectory extends BaseDirectory {
 
   final class FSIndexOutput extends OutputStreamIndexOutput {
     /**
-     * The maximum chunk size is 8192 bytes, because {@link FileOutputStream} mallocs
+     * The maximum chunk size is 8192 bytes, because file channel mallocs
      * a native buffer outside of stack if the write buffer size is larger.
      */
     static final int CHUNK_SIZE = 8192;

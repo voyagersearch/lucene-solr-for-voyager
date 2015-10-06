@@ -31,7 +31,9 @@ import org.apache.lucene.util.BitDocIdSet;
 
 /**
  * {@link Filter} wrapper that implements {@link BitDocIdSetFilter}.
+ * @deprecated Use {@link QueryBitSetProducer} instead
  */
+@Deprecated
 public class BitDocIdSetCachingWrapperFilter extends BitDocIdSetFilter {
   private final Filter filter;
   private final Map<Object,DocIdSet> cache = Collections.synchronizedMap(new WeakHashMap<Object,DocIdSet>());

@@ -18,24 +18,24 @@ package org.apache.solr.handler;
  */
 
 
-import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import org.apache.lucene.util.LuceneTestCase.BadApple;
-
 import org.apache.solr.client.solrj.SolrClient;
+import org.apache.solr.client.solrj.impl.CloudSolrClient;
 import org.apache.solr.client.solrj.impl.HttpSolrClient;
+import org.apache.solr.client.solrj.request.LukeRequest;
 import org.apache.solr.cloud.AbstractFullDistribZkTestBase;
 import org.apache.solr.common.cloud.DocCollection;
 import org.apache.solr.common.cloud.Replica;
 import org.apache.solr.common.cloud.Slice;
 import org.apache.solr.common.cloud.ZkStateReader;
+import org.apache.solr.common.util.NamedList;
 import org.apache.solr.common.util.StrUtils;
-import org.apache.solr.core.ConfigOverlay;
+import org.apache.solr.common.util.Utils;
 import org.apache.solr.core.RequestParams;
 import org.apache.solr.core.TestSolrConfigHandler;
 import org.apache.solr.util.RESTfulServerProvider;
@@ -76,19 +76,45 @@ public class TestSolrConfigHandlerCloud extends AbstractFullDistribZkTestBase {
     setupHarnesses();
     testReqHandlerAPIs();
     testReqParams();
+    testAdminPath();
+  }
+
+  private void testAdminPath() throws Exception{
+    String testServerBaseUrl = getRandomServer(cloudClient,"collection1");
+    RestTestHarness writeHarness = restTestHarnesses.get(random().nextInt(restTestHarnesses.size()));
+    String payload = "{\n" +
+        "'create-requesthandler' : { 'name' : '/admin/luke', " +
+        "'class': 'org.apache.solr.handler.DumpRequestHandler'}}";
+
+    TestSolrConfigHandler.runConfigCommand(writeHarness, "/config?wt=json", payload);
+
+
+    TestSolrConfigHandler.testForResponseElement(writeHarness,
+        testServerBaseUrl,
+        "/config/overlay?wt=json",
+        cloudClient,
+        Arrays.asList("overlay", "requestHandler", "/admin/luke", "class"),
+        "org.apache.solr.handler.DumpRequestHandler",
+        10);
+
+   NamedList<Object> rsp = cloudClient.request(new LukeRequest());
+   System.out.println(rsp);
   }
 
   private void testReqHandlerAPIs() throws Exception {
-    DocCollection coll = cloudClient.getZkStateReader().getClusterState().getCollection("collection1");
+    String testServerBaseUrl = getRandomServer(cloudClient,"collection1");
+    RestTestHarness writeHarness = restTestHarnesses.get(random().nextInt(restTestHarnesses.size()));
+    TestSolrConfigHandler.reqhandlertests(writeHarness, testServerBaseUrl , cloudClient);
+  }
+
+  public static String getRandomServer(CloudSolrClient cloudClient, String collName) {
+    DocCollection coll = cloudClient.getZkStateReader().getClusterState().getCollection(collName);
     List<String> urls = new ArrayList<>();
     for (Slice slice : coll.getSlices()) {
       for (Replica replica : slice.getReplicas())
         urls.add(""+replica.get(ZkStateReader.BASE_URL_PROP) + "/"+replica.get(ZkStateReader.CORE_NAME_PROP));
     }
-
-    RestTestHarness writeHarness = restTestHarnesses.get(random().nextInt(restTestHarnesses.size()));
-    String testServerBaseUrl = urls.get(random().nextInt(urls.size()));
-    TestSolrConfigHandler.reqhandlertests(writeHarness, testServerBaseUrl , cloudClient);
+    return urls.get(random().nextInt(urls.size()));
   }
 
   private void testReqParams() throws Exception{
@@ -268,7 +294,7 @@ public class TestSolrConfigHandlerCloud extends AbstractFullDistribZkTestBase {
 
   public static void compareValues(Map result, Object expected, List<String> jsonPath) {
     assertTrue(StrUtils.formatString("Could not get expected value  {0} for path {1} full output {2}", expected, jsonPath, getAsString(result)),
-        Objects.equals(expected, ConfigOverlay.getObjectByPath(result, false, jsonPath)));
+        Objects.equals(expected, Utils.getObjectByPath(result, false, jsonPath)));
   }
 
 }

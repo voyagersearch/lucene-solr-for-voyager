@@ -307,7 +307,7 @@ public class TestDiversifiedTopDocsCollector extends LuceneTestCase {
   }
 
   private Query getTestQuery() {
-    BooleanQuery testQuery = new BooleanQuery();
+    BooleanQuery.Builder testQuery = new BooleanQuery.Builder();
     testQuery.add(new BooleanClause(new TermQuery(new Term("year", "1966")),
         Occur.SHOULD));
     testQuery.add(new BooleanClause(new TermQuery(new Term("year", "1967")),
@@ -316,7 +316,7 @@ public class TestDiversifiedTopDocsCollector extends LuceneTestCase {
         Occur.SHOULD));
     testQuery.add(new BooleanClause(new TermQuery(new Term("year", "1969")),
         Occur.SHOULD));
-    return testQuery;
+    return testQuery.build();
   }
 
   @Override
@@ -372,7 +372,7 @@ public class TestDiversifiedTopDocsCollector extends LuceneTestCase {
     artistDocValues = ar.getSortedDocValues("artist");
 
     // All searches sort by song popularity 
-    final Similarity base = searcher.getSimilarity();
+    final Similarity base = searcher.getSimilarity(true);
     searcher.setSimilarity(new DocValueSimilarity(base, "weeksAtNumberOne"));
   }
 
@@ -422,9 +422,9 @@ public class TestDiversifiedTopDocsCollector extends LuceneTestCase {
     }
 
     @Override
-    public SimWeight computeWeight(float queryBoost,
+    public SimWeight computeWeight(
         CollectionStatistics collectionStats, TermStatistics... termStats) {
-      return sim.computeWeight(queryBoost, collectionStats, termStats);
+      return sim.computeWeight(collectionStats, termStats);
     }
 
     @Override

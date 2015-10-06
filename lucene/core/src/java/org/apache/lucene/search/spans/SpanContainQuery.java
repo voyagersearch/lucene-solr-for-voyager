@@ -20,21 +20,22 @@ package org.apache.lucene.search.spans;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Map;
-import java.util.Set;
 import java.util.Objects;
+import java.util.Set;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermContext;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.util.Bits;
 
 abstract class SpanContainQuery extends SpanQuery implements Cloneable {
+
   SpanQuery big;
   SpanQuery little;
 
-  SpanContainQuery(SpanQuery big, SpanQuery little, float boost) {
+  SpanContainQuery(SpanQuery big, SpanQuery little) {
     this.big = Objects.requireNonNull(big);
     this.little = Objects.requireNonNull(little);
     Objects.requireNonNull(big.getField());
@@ -42,32 +43,53 @@ abstract class SpanContainQuery extends SpanQuery implements Cloneable {
     if (! big.getField().equals(little.getField())) {
       throw new IllegalArgumentException("big and little not same field");
     }
-    this.setBoost(boost);
   }
 
   @Override
   public String getField() { return big.getField(); }
 
-  /** Extract terms from both <code>big</code> and <code>little</code>. */
-  @Override
-  public void extractTerms(Set<Term> terms) {
-    big.extractTerms(terms);
-    little.extractTerms(terms);
-  }
+  public abstract class SpanContainWeight extends SpanWeight {
 
-  ArrayList<Spans> prepareConjunction(final LeafReaderContext context, final Bits acceptDocs, final Map<Term,TermContext> termContexts) throws IOException {
-    Spans bigSpans = big.getSpans(context, acceptDocs, termContexts);
-    if (bigSpans == null) {
-      return null;
+    final SpanWeight bigWeight;
+    final SpanWeight littleWeight;
+
+    public SpanContainWeight(IndexSearcher searcher, Map<Term, TermContext> terms,
+                             SpanWeight bigWeight, SpanWeight littleWeight) throws IOException {
+      super(SpanContainQuery.this, searcher, terms);
+      this.bigWeight = bigWeight;
+      this.littleWeight = littleWeight;
     }
-    Spans littleSpans = little.getSpans(context, acceptDocs, termContexts);
-    if (littleSpans == null) {
-      return null;
+
+    /**
+     * Extract terms from both <code>big</code> and <code>little</code>.
+     */
+    @Override
+    public void extractTerms(Set<Term> terms) {
+      bigWeight.extractTerms(terms);
+      littleWeight.extractTerms(terms);
     }
-    ArrayList<Spans> bigAndLittle = new ArrayList<>();
-    bigAndLittle.add(bigSpans);
-    bigAndLittle.add(littleSpans);
-    return bigAndLittle;
+
+    ArrayList<Spans> prepareConjunction(final LeafReaderContext context, Postings postings) throws IOException {
+      Spans bigSpans = bigWeight.getSpans(context, postings);
+      if (bigSpans == null) {
+        return null;
+      }
+      Spans littleSpans = littleWeight.getSpans(context, postings);
+      if (littleSpans == null) {
+        return null;
+      }
+      ArrayList<Spans> bigAndLittle = new ArrayList<>();
+      bigAndLittle.add(bigSpans);
+      bigAndLittle.add(littleSpans);
+      return bigAndLittle;
+    }
+
+    @Override
+    public void extractTermContexts(Map<Term, TermContext> contexts) {
+      bigWeight.extractTermContexts(contexts);
+      littleWeight.extractTermContexts(contexts);
+    }
+
   }
 
   String toString(String field, String name) {
@@ -82,22 +104,19 @@ abstract class SpanContainQuery extends SpanQuery implements Cloneable {
   }
 
   @Override
-  public abstract SpanContainQuery clone();
-
-  @Override
   public Query rewrite(IndexReader reader) throws IOException {
-    SpanContainQuery clone = null;
+    if (getBoost() != 1f) {
+      return super.rewrite(reader);
+    }
     SpanQuery rewrittenBig = (SpanQuery) big.rewrite(reader);
-    if (rewrittenBig != big) {
-      clone = this.clone();
-      clone.big = rewrittenBig;
-    }
     SpanQuery rewrittenLittle = (SpanQuery) little.rewrite(reader);
-    if (rewrittenLittle != little) {
-      if (clone == null) clone = this.clone();
+    if (big != rewrittenBig || little != rewrittenLittle) {
+      SpanContainQuery clone = (SpanContainQuery) super.clone();
+      clone.big = rewrittenBig;
       clone.little = rewrittenLittle;
+      return clone;
     }
-    return (clone != null) ? clone : this;
+    return super.rewrite(reader);
   }
 
   @Override

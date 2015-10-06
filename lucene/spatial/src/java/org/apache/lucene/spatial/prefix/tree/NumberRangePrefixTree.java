@@ -266,6 +266,11 @@ public abstract class NumberRangePrefixTree extends SpatialPrefixTree {
       lastLevelInCommon = level - 1;
     }
 
+    @Override
+    public SpatialContext getContext() {
+      return DUMMY_CTX;
+    }
+
     public UnitNRShape getMinUnit() { return minLV; }
 
     public UnitNRShape getMaxUnit() { return maxLV; }
@@ -354,11 +359,6 @@ public abstract class NumberRangePrefixTree extends SpatialPrefixTree {
       int result = minLV.hashCode();
       result = 31 * result + maxLV.hashCode();
       return result;
-    }
-
-    @Override
-    public SpatialContext getContext() {
-      return ctx;
     }
   }// class SpanUnitsNRShape
 
@@ -959,6 +959,11 @@ public abstract class NumberRangePrefixTree extends SpatialPrefixTree {
     }
 
     @Override
+    public SpatialContext getContext() {
+      return DUMMY_CTX;
+    }
+
+    @Override
     public int hashCode() {
       //trick to re-use bytesref; provided that we re-instate it
       int myLastLen = term.length;
@@ -978,11 +983,6 @@ public abstract class NumberRangePrefixTree extends SpatialPrefixTree {
       if (getLevel() == 0)
         return pretty;
       return toStringUnitRaw(this) + (isLeaf() ? "•" : "") + " " + pretty;
-    }
-
-    @Override
-    public SpatialContext getContext() {
-      return ctx;
     }
 
   } // END OF NRCell

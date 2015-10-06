@@ -23,7 +23,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -31,7 +30,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
 import com.google.common.collect.ImmutableMap;
@@ -54,6 +52,7 @@ import org.apache.solr.common.cloud.Replica;
 import org.apache.solr.common.cloud.Slice;
 import org.apache.solr.common.cloud.ZkNodeProps;
 import org.apache.solr.common.cloud.ZkStateReader;
+import org.apache.solr.common.params.CommonAdminParams;
 import org.apache.solr.common.params.CoreAdminParams;
 import org.apache.solr.common.params.CoreAdminParams.CoreAdminAction;
 import org.apache.solr.common.params.ModifiableSolrParams;
@@ -165,7 +164,7 @@ public class CoreAdminHandler extends RequestHandlerBase {
               "Core container instance missing");
     }
     //boolean doPersist = false;
-    String taskId = req.getParams().get("async");
+    final String taskId = req.getParams().get(CommonAdminParams.ASYNC);
     TaskObject taskObject = new TaskObject(taskId);
 
     if(taskId != null) {
@@ -309,7 +308,7 @@ public class CoreAdminHandler extends RequestHandlerBase {
           if (zkController != null) {
             zkController.rejoinShardLeaderElection(req.getParams());
           } else {
-            log.warn("zkController is null in CoreAdminHandler.handleRequestInternal:REJOINLEADERELCTIONS. No action taken.");
+            log.warn("zkController is null in CoreAdminHandler.handleRequestInternal:REJOINLEADERELECTION. No action taken.");
           }
           break;
         case INVOKE:
@@ -765,7 +764,7 @@ public class CoreAdminHandler extends RequestHandlerBase {
     SolrParams params = req.getParams();
     String cname = params.get(CoreAdminParams.CORE);
 
-    if(!coreContainer.getCoreNames().contains(cname)) {
+    if (cname == null || !coreContainer.getCoreNames().contains(cname)) {
       throw new SolrException(ErrorCode.BAD_REQUEST, "Core with core name [" + cname + "] does not exist.");
     }
 
@@ -884,7 +883,7 @@ public class CoreAdminHandler extends RequestHandlerBase {
           throw new SolrException(ErrorCode.SERVER_ERROR, "Sync Failed");
         }
       } else {
-        SolrException.log(log, "Cound not find core to call sync:" + cname);
+        SolrException.log(log, "Could not find core to call sync:" + cname);
       }
     } finally {
       // no recoveryStrat close for now
@@ -946,7 +945,7 @@ public class CoreAdminHandler extends RequestHandlerBase {
                   waitForState + "; forcing ClusterState update from ZooKeeper");
             
             // force a cluster state update
-            coreContainer.getZkController().getZkStateReader().updateClusterState(true);
+            coreContainer.getZkController().getZkStateReader().updateClusterState();
           }
 
           if (maxTries == 0) {
@@ -1164,8 +1163,8 @@ public class CoreAdminHandler extends RequestHandlerBase {
           info.add("dataDir", normalizePath(core.getDataDir()));
           info.add("config", core.getConfigResource());
           info.add("schema", core.getSchemaResource());
-          info.add("startTime", new Date(core.getStartTime()));
-          info.add("uptime", System.currentTimeMillis() - core.getStartTime());
+          info.add("startTime", core.getStartTimeStamp());
+          info.add("uptime", core.getUptimeMs());
           if (isIndexInfoNeeded) {
             RefCounted<SolrIndexSearcher> searcher = core.getSearcher();
             try {

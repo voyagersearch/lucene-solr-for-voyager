@@ -18,6 +18,7 @@ package org.apache.solr.search;
 
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.Query;
 import org.apache.solr.common.params.SolrParams;
@@ -54,31 +55,43 @@ public class MaxScoreQParser extends LuceneQParser {
   @Override
   public Query parse() throws SyntaxError {
     Query q = super.parse();
-    if (!(q instanceof BooleanQuery)) {
+    float boost = 1f;
+    if (q instanceof BoostQuery) {
+      BoostQuery bq = (BoostQuery) q;
+      boost = bq.getBoost();
+      q = bq.getQuery();
+    }
+    if (q instanceof BooleanQuery == false) {
+      if (boost != 1f) {
+        q = new BoostQuery(q, boost);
+      }
       return q;
     }
     BooleanQuery obq = (BooleanQuery)q;
     Collection<Query> should = new ArrayList<>();
     Collection<BooleanClause> prohibOrReq = new ArrayList<>();
-    BooleanQuery newq = new BooleanQuery();
+    BooleanQuery.Builder newqb = new BooleanQuery.Builder();
 
-    for (BooleanClause clause : obq.getClauses()) {
+    for (BooleanClause clause : obq) {
       if(clause.isProhibited() || clause.isRequired()) {
         prohibOrReq.add(clause);
       } else {
-        BooleanQuery bq = new BooleanQuery();
+        BooleanQuery.Builder bq = new BooleanQuery.Builder();
         bq.add(clause);
-        should.add(bq);
+        should.add(bq.build());
       }
     }
     if (should.size() > 0) {
       DisjunctionMaxQuery dmq = new DisjunctionMaxQuery(should, tie);
-      newq.add(dmq, BooleanClause.Occur.SHOULD);
+      newqb.add(dmq, BooleanClause.Occur.SHOULD);
     }
     for(BooleanClause c : prohibOrReq) {
-      newq.add(c);
+      newqb.add(c);
     }
-    newq.setBoost(obq.getBoost());
+    Query newq = newqb.build();
+    if (boost != 1f) {
+      newq = new BoostQuery(newq, boost);
+    }
     return newq;
   }
 }

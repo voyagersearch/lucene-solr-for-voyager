@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.
@@ -194,7 +194,7 @@ final class ZooKeeperInspector {
       Files.move(dir, confDir);
       dir = confDir.getParentFile();
     }
-    FileUtils.writeStringToFile(new File(dir, "solr.xml"), "<solr></solr>", "UTF-8");
+    FileUtils.writeStringToFile(new File(dir, "solr.xml"), "<solr><solrcloud></solrcloud></solr>", "UTF-8");
     verifyConfigDir(confDir);
     return dir;
   }

@@ -68,11 +68,9 @@ public class FuzzyLikeThisQuery extends Query
     // the rewrite method can 'average' the TermContext's term statistics (docfreq,totalTermFreq) 
     // provided to TermQuery, so that the general idea is agnostic to any scoring system...
     static TFIDFSimilarity sim=new DefaultSimilarity();
-    Query rewrittenQuery=null;
     ArrayList<FieldVals> fieldVals=new ArrayList<>();
     Analyzer analyzer;
-    
-    ScoreTermQueue q;
+
     int MAX_VARIANTS_PER_TERM=50;
     boolean ignoreTF=false;
     private int maxNumTerms;
@@ -125,7 +123,6 @@ public class FuzzyLikeThisQuery extends Query
      */
     public FuzzyLikeThisQuery(int maxNumTerms, Analyzer analyzer)
     {
-        q=new ScoreTermQueue(maxNumTerms);
         this.analyzer=analyzer;
         this.maxNumTerms = maxNumTerms;
     }
@@ -200,7 +197,7 @@ public class FuzzyLikeThisQuery extends Query
     }
 
 
-  private void addTerms(IndexReader reader, FieldVals f) throws IOException {
+  private void addTerms(IndexReader reader, FieldVals f, ScoreTermQueue q) throws IOException {
     if (f.queryString == null) return;
     final Terms terms = MultiFields.getTerms(reader, f.fieldName);
     if (terms == null) {
@@ -289,20 +286,16 @@ public class FuzzyLikeThisQuery extends Query
   @Override
     public Query rewrite(IndexReader reader) throws IOException
     {
-        if(rewrittenQuery!=null)
-        {
-            return rewrittenQuery;
+        if (getBoost() != 1f) {
+          return super.rewrite(reader);
         }
+        ScoreTermQueue q = new ScoreTermQueue(maxNumTerms);
         //load up the list of possible terms
-        for (Iterator<FieldVals> iter = fieldVals.iterator(); iter.hasNext(); ) {
-          FieldVals f = iter.next();
-          addTerms(reader, f);
+        for (FieldVals f : fieldVals) {
+          addTerms(reader, f, q);
         }
-      //clear the list of fields
-        fieldVals.clear();
         
-        BooleanQuery bq=new BooleanQuery();
-        
+        BooleanQuery.Builder bq = new BooleanQuery.Builder();
         
         //create BooleanQueries to hold the variants for each token/field pair and ensure it
         // has no coord factor
@@ -334,7 +327,8 @@ public class FuzzyLikeThisQuery extends Query
             }
             else
             {
-                BooleanQuery termVariants=new BooleanQuery(true); //disable coord and IDF for these term variants
+                BooleanQuery.Builder termVariants=new BooleanQuery.Builder();
+                termVariants.setDisableCoord(true); //disable coord and IDF for these term variants
                 for (Iterator<ScoreTerm> iterator2 = variants.iterator(); iterator2
                         .hasNext();)
                 {
@@ -344,14 +338,12 @@ public class FuzzyLikeThisQuery extends Query
                     tq.setBoost(st.score); // set the boost using the ScoreTerm's score
                     termVariants.add(tq, BooleanClause.Occur.SHOULD);          // add to query                    
                 }
-                bq.add(termVariants, BooleanClause.Occur.SHOULD);          // add to query
+                bq.add(termVariants.build(), BooleanClause.Occur.SHOULD);          // add to query
             }
         }
         //TODO possible alternative step 3 - organize above booleans into a new layer of field-based
         // booleans with a minimum-should-match of NumFields-1?
-        bq.setBoost(getBoost());
-        this.rewrittenQuery=bq;
-        return bq;
+        return bq.build();
     }
     
     //Holds info for a fuzzy term variant - initially score is set to edit distance (for ranking best

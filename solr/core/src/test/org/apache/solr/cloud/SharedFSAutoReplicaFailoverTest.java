@@ -17,7 +17,7 @@ package org.apache.solr.cloud;
  * limitations under the License.
  */
 
-import static org.apache.solr.common.cloud.ZkNodeProps.makeMap;
+import static org.apache.solr.common.util.Utils.makeMap;
 
 import java.util.Collection;
 import java.util.HashSet;
@@ -88,7 +88,6 @@ public class SharedFSAutoReplicaFailoverTest extends AbstractFullDistribZkTestBa
   public void distribSetUp() throws Exception {
     super.distribSetUp();
     useJettyDataDir = false;
-    System.setProperty("solr.xml.persist", "true");
   }
   
   protected String getSolrXml() {
@@ -261,6 +260,5 @@ public class SharedFSAutoReplicaFailoverTest extends AbstractFullDistribZkTestBa
   @Override
   public void distribTearDown() throws Exception {
     super.distribTearDown();
-    System.clearProperty("solr.xml.persist");
   }
 }

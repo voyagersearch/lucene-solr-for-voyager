@@ -293,12 +293,12 @@ public class TestSpans extends LuceneTestCase {
         }
       };
   
-      final Similarity oldSim = searcher.getSimilarity();
+      final Similarity oldSim = searcher.getSimilarity(true);
       Scorer spanScorer;
       try {
         searcher.setSimilarity(sim);
         SpanQuery snq = spanNearOrderedQuery(field, 1, "t1", "t2");
-        spanScorer = searcher.createNormalizedWeight(snq, true).scorer(ctx, ctx.reader().getLiveDocs());
+        spanScorer = searcher.createNormalizedWeight(snq, true).scorer(ctx);
       } finally {
         searcher.setSimilarity(oldSim);
       }

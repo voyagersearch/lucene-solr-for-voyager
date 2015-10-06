@@ -29,6 +29,7 @@ import org.apache.solr.common.cloud.ZkConfigManager;
 import org.apache.solr.common.cloud.ZkCoreNodeProps;
 import org.apache.solr.common.cloud.ZkNodeProps;
 import org.apache.solr.common.cloud.ZkStateReader;
+import org.apache.solr.common.util.Utils;
 import org.apache.solr.core.CloudConfig;
 import org.apache.solr.core.CoreContainer;
 import org.apache.solr.core.CoreDescriptor;
@@ -48,6 +49,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 @Slow
+@SolrTestCaseJ4.SuppressSSL
 public class ZkControllerTest extends SolrTestCaseJ4 {
 
   private static final String COLLECTION_NAME = "collection1";
@@ -141,7 +143,7 @@ public class ZkControllerTest extends SolrTestCaseJ4 {
         
         //Verify the URL Scheme is taken into account
         zkStateReader.getZkClient().create(ZkStateReader.CLUSTER_PROPS,
-            ZkStateReader.toJSON(Collections.singletonMap("urlScheme", "https")), CreateMode.PERSISTENT, true);
+            Utils.toJSON(Collections.singletonMap("urlScheme", "https")), CreateMode.PERSISTENT, true);
         
         assertEquals("https://zzz.xxx:1234/solr",
             zkStateReader.getBaseUrlForNodeName("zzz.xxx:1234_solr"));
@@ -178,7 +180,7 @@ public class ZkControllerTest extends SolrTestCaseJ4 {
       props.put("configName", actualConfigName);
       ZkNodeProps zkProps = new ZkNodeProps(props);
       zkClient.makePath(ZkStateReader.COLLECTIONS_ZKNODE + "/"
-              + COLLECTION_NAME, ZkStateReader.toJSON(zkProps),
+              + COLLECTION_NAME, Utils.toJSON(zkProps),
           CreateMode.PERSISTENT, true);
 
       if (DEBUG) {
@@ -251,65 +253,7 @@ public class ZkControllerTest extends SolrTestCaseJ4 {
     }
   }
 
-  /*
-  Test that:
-  1) LIR state to 'down' is not set unless publishing node is a leader
-    1a) Test that leader can publish when LIR node already exists in zk
-    1b) Test that leader can publish when LIR node does not exist - TODO
-  2) LIR state to 'active' or 'recovery' can be set regardless of whether publishing
-    node is leader or not - TODO
-   */
-  public void testEnsureReplicaInLeaderInitiatedRecovery() throws Exception  {
-    String zkDir = createTempDir("testEnsureReplicaInLeaderInitiatedRecovery").toFile().getAbsolutePath();
-    CoreContainer cc = null;
-
-    ZkTestServer server = new ZkTestServer(zkDir);
-    try {
-      server.run();
-
-      AbstractZkTestCase.tryCleanSolrZkNode(server.getZkHost());
-      AbstractZkTestCase.makeSolrZkNode(server.getZkHost());
-
-      cc = getCoreContainer();
-      ZkController zkController = null;
-
-      try {
-        CloudConfig cloudConfig = new CloudConfig.CloudConfigBuilder("127.0.0.1", 8983, "solr").build();
-        zkController = new ZkController(cc, server.getZkAddress(), TIMEOUT, cloudConfig, new CurrentCoreDescriptorProvider() {
-
-          @Override
-          public List<CoreDescriptor> getCurrentDescriptors() {
-            // do nothing
-            return null;
-          }
-        });
-        HashMap<String, Object> propMap = new HashMap<>();
-        propMap.put(ZkStateReader.BASE_URL_PROP, "http://127.0.0.1:8983/solr");
-        propMap.put(ZkStateReader.CORE_NAME_PROP, "replica1");
-        propMap.put(ZkStateReader.NODE_NAME_PROP, "127.0.0.1:8983_solr");
-        Replica replica = new Replica("replica1", propMap);
-        try {
-          // this method doesn't throw exception when node isn't leader
-          zkController.ensureReplicaInLeaderInitiatedRecovery("c1", "shard1",
-              new ZkCoreNodeProps(replica), "non_existent_leader", false, false);
-          fail("ZkController should not write LIR state for node which is not leader");
-        } catch (Exception e) {
-          assertNull("ZkController should not write LIR state for node which is not leader",
-              zkController.getLeaderInitiatedRecoveryState("c1", "shard1", "replica1"));
-        }
-      } finally {
-        if (zkController != null)
-          zkController.close();
-      }
-    } finally {
-      if (cc != null) {
-        cc.shutdown();
-      }
-      server.shutdown();
-    }
-  }
-
-  @AwaitsFix(bugUrl = "https://issues.apache.org/jira/browse/SOLR-6665")
+  @AwaitsFix(bugUrl = "https://issues.apache.org/jira/browse/SOLR-7736")
   public void testPublishAndWaitForDownStates() throws Exception  {
     String zkDir = createTempDir("testPublishAndWaitForDownStates").toFile().getAbsolutePath();
     CoreContainer cc = null;
@@ -351,10 +295,10 @@ public class ZkControllerTest extends SolrTestCaseJ4 {
         Slice slice = new Slice("shard1", replicas, sliceProps);
         DocCollection c = new DocCollection("testPublishAndWaitForDownStates", map("shard1", slice), Collections.<String, Object>emptyMap(), DocRouter.DEFAULT);
         ClusterState state = new ClusterState(0, Collections.<String>emptySet(), map("testPublishAndWaitForDownStates", c));
-        byte[] bytes = ZkStateReader.toJSON(state);
+        byte[] bytes = Utils.toJSON(state);
         zkController.getZkClient().makePath(ZkStateReader.getCollectionPath("testPublishAndWaitForDownStates"), bytes, CreateMode.PERSISTENT, true);
 
-        zkController.getZkStateReader().updateClusterState(true);
+        zkController.getZkStateReader().updateClusterState();
         assertTrue(zkController.getZkStateReader().getClusterState().hasCollection("testPublishAndWaitForDownStates"));
         assertNotNull(zkController.getZkStateReader().getClusterState().getCollection("testPublishAndWaitForDownStates"));
 

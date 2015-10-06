@@ -18,10 +18,10 @@
 package org.apache.solr.response.transform;
 
 import java.io.IOException;
+import java.util.Set;
 
 import org.apache.solr.common.SolrDocument;
 import org.apache.solr.response.QueryResponseWriter;
-import org.apache.solr.response.ResponseWriterUtil;
 import org.apache.solr.search.SolrIndexSearcher;
 
 /**
@@ -34,8 +34,8 @@ import org.apache.solr.search.SolrIndexSearcher;
  * @see TransformerFactory
  *
  */
-public abstract class DocTransformer
-{
+public abstract class DocTransformer {
+  protected  TransformContext context;
   /**
    *
    * @return The name of the transformer
@@ -47,7 +47,10 @@ public abstract class DocTransformer
    * @param context The {@link org.apache.solr.response.transform.TransformContext} stores information about the current state of things in Solr that may be
    * useful for doing transformations.
    */
-  public void setContext( TransformContext context ) {}
+  public void setContext( TransformContext context ) {
+    this.context = context;
+
+  }
 
   /**
    * This is where implementations do the actual work

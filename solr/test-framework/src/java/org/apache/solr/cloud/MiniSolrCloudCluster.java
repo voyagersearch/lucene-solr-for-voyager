@@ -28,6 +28,7 @@ import org.apache.solr.common.cloud.SolrZkClient;
 import org.apache.solr.common.cloud.ZkConfigManager;
 import org.apache.solr.common.cloud.ZkStateReader;
 import org.apache.solr.common.params.CollectionParams.CollectionAction;
+import org.apache.solr.common.params.CommonAdminParams;
 import org.apache.solr.common.params.CoreAdminParams;
 import org.apache.solr.common.params.ModifiableSolrParams;
 import org.apache.solr.common.util.ExecutorUtil;
@@ -63,6 +64,7 @@ public class MiniSolrCloudCluster {
   private static Logger log = LoggerFactory.getLogger(MiniSolrCloudCluster.class);
 
   private final ZkTestServer zkServer;
+  private final boolean externalZkServer;
   private final List<JettySolrRunner> jettys = new LinkedList<>();
   private final File testDir;
   private final CloudSolrClient solrClient;
@@ -124,15 +126,34 @@ public class MiniSolrCloudCluster {
    * @throws Exception if there was an error starting the cluster
    */
   public MiniSolrCloudCluster(int numServers, File baseDir, File solrXml, final JettyConfig jettyConfig) throws Exception {
+    this(numServers, baseDir, solrXml, jettyConfig, null);
+  }
+
+  /**
+   * Create a MiniSolrCloudCluster
+   *
+   * @param numServers number of Solr servers to start
+   * @param baseDir base directory that the mini cluster should be run from
+   * @param solrXml solr.xml file to be uploaded to ZooKeeper
+   * @param jettyConfig Jetty configuration
+   * @param zkTestServer ZkTestServer to use.  If null, one will be created
+   *
+   * @throws Exception if there was an error starting the cluster
+   */
+  public MiniSolrCloudCluster(int numServers, File baseDir, File solrXml, final JettyConfig jettyConfig, ZkTestServer zkTestServer) throws Exception {
 
     this.testDir = baseDir;
     this.jettyConfig = jettyConfig;
 
-    String zkDir = testDir.getAbsolutePath() + File.separator
-      + "zookeeper/server1/data";
-    zkServer = new ZkTestServer(zkDir);
-    zkServer.run();
-    
+    this.externalZkServer = zkTestServer != null;
+    if (!externalZkServer) {
+      String zkDir = testDir.getAbsolutePath() + File.separator
+        + "zookeeper/server1/data";
+      zkTestServer = new ZkTestServer(zkDir);
+      zkTestServer.run();
+    }
+    this.zkServer = zkTestServer;
+
     try(SolrZkClient zkClient = new SolrZkClient(zkServer.getZkHost(),
         AbstractZkTestCase.TIMEOUT, 45000, null)) {
       zkClient.makePath("/solr/solr.xml", solrXml, false, true);
@@ -142,7 +163,6 @@ public class MiniSolrCloudCluster {
     }
 
     // tell solr to look in zookeeper for solr.xml
-    System.setProperty("solr.solrxml.location","zookeeper");
     System.setProperty("zkHost", zkServer.getZkAddress());
 
     List<Callable<JettySolrRunner>> startups = new ArrayList<>(numServers);
@@ -307,12 +327,23 @@ public class MiniSolrCloudCluster {
   
   public NamedList<Object> createCollection(String name, int numShards, int replicationFactor, 
       String configName, Map<String, String> collectionProperties) throws SolrServerException, IOException {
+    return createCollection(name, numShards, replicationFactor, configName, null, null, collectionProperties);
+  }
+
+  public NamedList<Object> createCollection(String name, int numShards, int replicationFactor, 
+      String configName, String createNodeSet, String asyncId, Map<String, String> collectionProperties) throws SolrServerException, IOException {
     final ModifiableSolrParams params = new ModifiableSolrParams();
     params.set(CoreAdminParams.ACTION, CollectionAction.CREATE.name());
     params.set(CoreAdminParams.NAME, name);
     params.set("numShards", numShards);
     params.set("replicationFactor", replicationFactor);
     params.set("collection.configName", configName);
+    if (null != createNodeSet) {
+      params.set(OverseerCollectionMessageHandler.CREATE_NODE_SET, createNodeSet);
+    }
+    if (null != asyncId) {
+      params.set(CommonAdminParams.ASYNC, asyncId);
+    }
     if(collectionProperties != null) {
       for(Map.Entry<String, String> property : collectionProperties.entrySet()){
         params.set(CoreAdminParams.PROPERTY_PREFIX + property.getKey(), property.getValue());
@@ -364,9 +395,10 @@ public class MiniSolrCloudCluster {
       executor.shutdown();
       executor.awaitTermination(2, TimeUnit.SECONDS);
       try {
-        zkServer.shutdown();
+        if (!externalZkServer) {
+          zkServer.shutdown();
+        }
       } finally {
-        System.clearProperty("solr.solrxml.location");
         System.clearProperty("zkHost");
       }
     }

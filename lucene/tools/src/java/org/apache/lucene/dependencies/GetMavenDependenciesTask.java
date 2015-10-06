@@ -442,13 +442,13 @@ public class GetMavenDependenciesTask extends Task {
     } catch (IOException e) {
       throw new BuildException("Exception reading centralized versions file " + centralizedVersionsFile.getPath(), e);
     } 
-    SortedSet<Map.Entry> sortedEntries = new TreeSet<>(new Comparator<Map.Entry>() {
-      @Override public int compare(Map.Entry o1, Map.Entry o2) {
+    SortedSet<Map.Entry<?,?>> sortedEntries = new TreeSet<>(new Comparator<Map.Entry<?,?>>() {
+      @Override public int compare(Map.Entry<?,?> o1, Map.Entry<?,?> o2) {
         return ((String)o1.getKey()).compareTo((String)o2.getKey());
       }
     });
     sortedEntries.addAll(versions.entrySet());
-    for (Map.Entry entry : sortedEntries) {
+    for (Map.Entry<?,?> entry : sortedEntries) {
       String key = (String)entry.getKey();
       Matcher matcher = COORDINATE_KEY_PATTERN.matcher(key);
       if (matcher.lookingAt()) {
@@ -525,7 +525,7 @@ public class GetMavenDependenciesTask extends Task {
     }
     Map<String,SortedSet<String>> testScopeDependencies = new HashMap<>();
     Map<String, String> testScopePropertyKeys = new HashMap<>();
-    for (Map.Entry entry : moduleDependencies.entrySet()) {
+    for (Map.Entry<?,?> entry : moduleDependencies.entrySet()) {
       String newPropertyKey = (String)entry.getKey();
       StringBuilder newPropertyValue = new StringBuilder();
       String value = (String)entry.getValue();
@@ -548,8 +548,10 @@ public class GetMavenDependenciesTask extends Task {
       } else {
         // Lucene analysis modules' build dirs do not include hyphens, but Solr contribs' build dirs do
         String origModuleDir = antProjectName.replace("analyzers-", "analysis/");
+        // Exclude the module's own build output, in addition to UNWANTED_INTERNAL_DEPENDENCIES
         Pattern unwantedInternalDependencies = Pattern.compile
-            ("(?:lucene/build/|solr/build/(?:contrib/)?)" + origModuleDir + "|" + UNWANTED_INTERNAL_DEPENDENCIES);
+            ("(?:lucene/build/|solr/build/(?:contrib/)?)" + origModuleDir + "/" // require dir separator 
+             + "|" + UNWANTED_INTERNAL_DEPENDENCIES);
         SortedSet<String> sortedDeps = new TreeSet<>();
         for (String dependency : value.split(",")) {
           matcher = SHARED_EXTERNAL_DEPENDENCIES_PATTERN.matcher(dependency);

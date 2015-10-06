@@ -4,6 +4,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.spans.SpanBoostQuery;
 import org.apache.lucene.search.spans.SpanOrQuery;
 import org.apache.lucene.search.spans.SpanQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
@@ -53,17 +54,15 @@ public class SpanOrTermsBuilder extends SpanBuilderBase {
 
     try (TokenStream ts = analyzer.tokenStream(fieldName, value)) {
       TermToBytesRefAttribute termAtt = ts.addAttribute(TermToBytesRefAttribute.class);
-      BytesRef bytes = termAtt.getBytesRef();
       ts.reset();
       while (ts.incrementToken()) {
-        termAtt.fillBytesRef();
-        SpanTermQuery stq = new SpanTermQuery(new Term(fieldName, BytesRef.deepCopyOf(bytes)));
+        SpanTermQuery stq = new SpanTermQuery(new Term(fieldName, BytesRef.deepCopyOf(termAtt.getBytesRef())));
         clausesList.add(stq);
       }
       ts.end();
       SpanOrQuery soq = new SpanOrQuery(clausesList.toArray(new SpanQuery[clausesList.size()]));
-      soq.setBoost(DOMUtils.getAttribute(e, "boost", 1.0f));
-      return soq;
+      float boost = DOMUtils.getAttribute(e, "boost", 1.0f);
+      return new SpanBoostQuery(soq, boost);
     }
     catch (IOException ioe) {
       throw new ParserException("IOException parsing value:" + value);

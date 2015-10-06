@@ -19,7 +19,6 @@ package org.apache.solr.search;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryUtils;
 import org.apache.solr.SolrTestCaseJ4;
-import org.apache.solr.common.SolrInputDocument;
 import org.apache.solr.request.SolrQueryRequest;
 import org.apache.solr.request.SolrRequestInfo;
 import org.apache.solr.response.SolrQueryResponse;
@@ -379,6 +378,23 @@ public class QueryEqualityTest extends SolrTestCaseJ4 {
                         "{!join from=foo_s to=bar_s}asdf",
                         "{!join from=$ff to=$tt}asdf",
                         "{!join from=$ff to='bar_s'}text:asdf");
+    } finally {
+      req.close();
+    }
+  }
+
+  public void testQueryScoreJoin() throws Exception {
+    SolrQueryRequest req = req("myVar", "5",
+        "df", "text",
+        "ff", "foo_s",
+        "tt", "bar_s",
+        "scoreavg","avg");
+
+    try {
+      assertQueryEquals("join", req,
+          "{!join from=foo_s to=bar_s score=avg}asdf",
+          "{!join from=$ff to=$tt score=Avg}asdf",
+          "{!join from=$ff to='bar_s' score=$scoreavg}text:asdf");
     } finally {
       req.close();
     }
@@ -800,6 +816,28 @@ public class QueryEqualityTest extends SolrTestCaseJ4 {
     assertFuncEquals("field(\"foo_i\")", 
                      "field('foo_i\')", 
                      "foo_i");
+    
+    // simple VS of single valued field should be same as asking for min/max on that field
+    assertFuncEquals("field(\"foo_i\")", 
+                     "field('foo_i',min)", 
+                     "field(foo_i,'min')", 
+                     "field('foo_i',max)", 
+                     "field(foo_i,'max')", 
+                     "foo_i");
+
+    // multivalued field with selector
+    String multif = "multi_int_with_docvals";
+    SolrQueryRequest req = req("my_field", multif);
+    // this test is only viable if it's a multivalued field, sanity check the schema
+    assertTrue(multif + " is no longer multivalued, who broke this schema?",
+               req.getSchema().getField(multif).multiValued());
+    assertFuncEquals(req,
+                     "field($my_field,'MIN')", 
+                     "field('"+multif+"',min)");
+    assertFuncEquals(req,
+                     "field($my_field,'max')", 
+                     "field('"+multif+"',Max)"); 
+    
   }
   public void testFuncCurrency() throws Exception {
     assertFuncEquals("currency(\"amount\")", 
@@ -899,18 +937,17 @@ public class QueryEqualityTest extends SolrTestCaseJ4 {
       for (int i = 0; i < inputs.length; i++) {
         queries[i] = (QParser.getParser(inputs[i], defType, req).getQuery());
       }
+      for (int i = 0; i < queries.length; i++) {
+        QueryUtils.check(queries[i]);
+        // yes starting j=0 is redundent, we're making sure every query 
+        // is equal to itself, and that the quality checks work regardless 
+        // of which caller/callee is used.
+        for (int j = 0; j < queries.length; j++) {
+          QueryUtils.checkEqual(queries[i], queries[j]);
+        }
+      }
     } finally {
       SolrRequestInfo.clearRequestInfo();
-    }
-
-    for (int i = 0; i < queries.length; i++) {
-      QueryUtils.check(queries[i]);
-      // yes starting j=0 is redundent, we're making sure every query 
-      // is equal to itself, and that the quality checks work regardless 
-      // of which caller/callee is used.
-      for (int j = 0; j < queries.length; j++) {
-        QueryUtils.checkEqual(queries[i], queries[j]);
-      }
     }
   }
 

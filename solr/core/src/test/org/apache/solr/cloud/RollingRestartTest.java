@@ -18,6 +18,7 @@ package org.apache.solr.cloud;
  */
 
 import org.apache.commons.collections.CollectionUtils;
+import org.apache.solr.client.solrj.request.CollectionAdminRequest;
 import org.apache.solr.common.cloud.SolrZkClient;
 import org.apache.solr.common.params.CollectionParams;
 import org.apache.zookeeper.KeeperException;
@@ -42,14 +43,7 @@ public class RollingRestartTest extends AbstractFullDistribZkTestBase {
   @Override
   public void distribSetUp() throws Exception {
     super.distribSetUp();
-    System.setProperty("numShards", Integer.toString(sliceCount));
     useFactory("solr.StandardDirectoryFactory");
-  }
-
-  @Override
-  public void distribTearDown() throws Exception {
-    System.clearProperty("numShards");
-    super.distribTearDown();
   }
 
   @Test
@@ -63,7 +57,7 @@ public class RollingRestartTest extends AbstractFullDistribZkTestBase {
 
 
   public void restartWithRolesTest() throws Exception {
-    String leader = OverseerCollectionProcessor.getLeaderNode(cloudClient.getZkStateReader().getZkClient());
+    String leader = OverseerCollectionConfigSetProcessor.getLeaderNode(cloudClient.getZkStateReader().getZkClient());
     assertNotNull(leader);
     log.info("Current overseer leader = {}", leader);
 
@@ -77,7 +71,7 @@ public class RollingRestartTest extends AbstractFullDistribZkTestBase {
       int n = random().nextInt(getShardCount());
       String nodeName = cloudJettys.get(n).nodeName;
       log.info("Chose {} as overseer designate", nodeName);
-      invokeCollectionApi(CollectionParams.ACTION, CollectionParams.CollectionAction.ADDROLE.toLower(), "role", "overseer", "node", nodeName);
+      new CollectionAdminRequest.AddRole().setRole("overseer").setNode(nodeName).process(cloudClient);
       designates.add(nodeName);
       designateJettys.add(cloudJettys.get(n));
     }
@@ -99,10 +93,10 @@ public class RollingRestartTest extends AbstractFullDistribZkTestBase {
           sawLiveDesignate = true;
           boolean success = waitUntilOverseerDesignateIsLeader(cloudClient.getZkStateReader().getZkClient(), designates, MAX_WAIT_TIME);
           if (!success) {
-            leader = OverseerCollectionProcessor.getLeaderNode(cloudClient.getZkStateReader().getZkClient());
+            leader = OverseerCollectionConfigSetProcessor.getLeaderNode(cloudClient.getZkStateReader().getZkClient());
             if (leader == null)
               log.error("NOOVERSEER election queue is :" +
-                  OverseerCollectionProcessor.getSortedElectionNodes(cloudClient.getZkStateReader().getZkClient(),
+                  OverseerCollectionConfigSetProcessor.getSortedElectionNodes(cloudClient.getZkStateReader().getZkClient(),
                       OverseerElectionContext.PATH + LeaderElector.ELECTION_NODE));
             fail("No overseer designate as leader found after restart #" + (i + 1) + ": " + leader);
           }
@@ -110,10 +104,10 @@ public class RollingRestartTest extends AbstractFullDistribZkTestBase {
         assertTrue("Unable to restart (#" + i + "): " + cloudJetty, ChaosMonkey.start(cloudJetty.jetty));
         boolean success = waitUntilOverseerDesignateIsLeader(cloudClient.getZkStateReader().getZkClient(), designates, MAX_WAIT_TIME);
         if (!success) {
-          leader = OverseerCollectionProcessor.getLeaderNode(cloudClient.getZkStateReader().getZkClient());
+          leader = OverseerCollectionConfigSetProcessor.getLeaderNode(cloudClient.getZkStateReader().getZkClient());
           if (leader == null)
             log.error("NOOVERSEER election queue is :" +
-                OverseerCollectionProcessor.getSortedElectionNodes(cloudClient.getZkStateReader().getZkClient(),
+                OverseerCollectionConfigSetProcessor.getSortedElectionNodes(cloudClient.getZkStateReader().getZkClient(),
                     OverseerElectionContext.PATH + LeaderElector.ELECTION_NODE));
           fail("No overseer leader found after restart #" + (i + 1) + ": " + leader);
         }
@@ -126,7 +120,7 @@ public class RollingRestartTest extends AbstractFullDistribZkTestBase {
     
     assertTrue("Test may not be working if we never saw a live designate", sawLiveDesignate);
 
-    leader = OverseerCollectionProcessor.getLeaderNode(cloudClient.getZkStateReader().getZkClient());
+    leader = OverseerCollectionConfigSetProcessor.getLeaderNode(cloudClient.getZkStateReader().getZkClient());
     assertNotNull(leader);
     log.info("Current overseer leader (after restart) = {}", leader);
 
@@ -141,7 +135,7 @@ public class RollingRestartTest extends AbstractFullDistribZkTestBase {
     int stableCheckTimeout = 2000;
     String oldleader = null;
     while (System.nanoTime() < timeout && System.nanoTime() < maxTimeout) {
-      String newLeader = OverseerCollectionProcessor.getLeaderNode(testZkClient);
+      String newLeader = OverseerCollectionConfigSetProcessor.getLeaderNode(testZkClient);
       if (newLeader != null && !newLeader.equals(oldleader)) {
         // the leaders have changed, let's move the timeout further
         timeout = System.nanoTime() + TimeUnit.NANOSECONDS.convert(60, TimeUnit.SECONDS);

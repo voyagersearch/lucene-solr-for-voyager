@@ -17,12 +17,22 @@
 
 package org.apache.solr.search;
 
-import com.google.common.base.Function;
-import com.google.common.collect.Multimap;
-import com.google.common.collect.Multimaps;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.core.StopFilterFactory;
 import org.apache.lucene.analysis.util.TokenFilterFactory;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.function.BoostedQuery;
 import org.apache.lucene.queries.function.FunctionQuery;
 import org.apache.lucene.queries.function.ValueSource;
@@ -30,6 +40,7 @@ import org.apache.lucene.queries.function.valuesource.ProductFloatFunction;
 import org.apache.lucene.queries.function.valuesource.QueryValueSource;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MultiPhraseQuery;
@@ -45,17 +56,9 @@ import org.apache.solr.request.SolrQueryRequest;
 import org.apache.solr.schema.FieldType;
 import org.apache.solr.util.SolrPluginUtils;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.LinkedHashMap;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import com.google.common.base.Function;
+import com.google.common.collect.Multimap;
+import com.google.common.collect.Multimaps;
 
 /**
  * Query parser that generates DisjunctionMaxQueries based on user configuration.
@@ -140,7 +143,8 @@ public class ExtendedDismaxQParser extends QParser {
     /* the main query we will execute.  we disable the coord because
      * this query is an artificial construct
      */
-    BooleanQuery query = new BooleanQuery(true);
+    BooleanQuery.Builder query = new BooleanQuery.Builder();
+    query.setDisableCoord(true);
     
     /* * * Main User Query * * */
     parsedUserQuery = null;
@@ -207,13 +211,13 @@ public class ExtendedDismaxQParser extends QParser {
     //
     // create a boosted query (scores multiplied by boosts)
     //
-    Query topQuery = query;
+    Query topQuery = query.build();
     List<ValueSource> boosts = getMultiplicativeBoosts();
     if (boosts.size()>1) {
       ValueSource prod = new ProductFloatFunction(boosts.toArray(new ValueSource[boosts.size()]));
-      topQuery = new BoostedQuery(query, prod);
+      topQuery = new BoostedQuery(topQuery, prod);
     } else if (boosts.size() == 1) {
-      topQuery = new BoostedQuery(query, boosts.get(0));
+      topQuery = new BoostedQuery(topQuery, boosts.get(0));
     }
     
     return topQuery;
@@ -223,7 +227,7 @@ public class ExtendedDismaxQParser extends QParser {
    * Adds shingled phrase queries to all the fields specified in the pf, pf2 anf pf3 parameters
    * 
    */
-  protected void addPhraseFieldQueries(BooleanQuery query, List<Clause> clauses,
+  protected void addPhraseFieldQueries(BooleanQuery.Builder query, List<Clause> clauses,
       ExtendedDismaxConfiguration config) throws SyntaxError {
 
     // sloppy phrase queries for proximity
@@ -294,10 +298,10 @@ public class ExtendedDismaxQParser extends QParser {
     Query query = up.parse(escapedUserQuery);
     
     if (query instanceof BooleanQuery) {
-      BooleanQuery t = new BooleanQuery();
+      BooleanQuery.Builder t = new BooleanQuery.Builder();
       SolrPluginUtils.flattenBooleanQuery(t, (BooleanQuery)query);
       SolrPluginUtils.setMinShouldMatch(t, config.minShouldMatch);
-      query = t;
+      query = t.build();
     }
     return query;
   }
@@ -338,7 +342,7 @@ public class ExtendedDismaxQParser extends QParser {
     // were explicit operators (except for AND).
     boolean doMinMatched = doMinMatched(clauses, config.lowercaseOperators);
     if (doMinMatched && query instanceof BooleanQuery) {
-      SolrPluginUtils.setMinShouldMatch((BooleanQuery)query, config.minShouldMatch);
+      query = SolrPluginUtils.setMinShouldMatch((BooleanQuery)query, config.minShouldMatch);
     }
     return query;
   }
@@ -470,8 +474,8 @@ public class ExtendedDismaxQParser extends QParser {
         for (String f : ff.keySet()) {
           Query fq = subQuery(f, FunctionQParserPlugin.NAME).getQuery();
           Float b = ff.get(f);
-          if (null != b) {
-            fq.setBoost(b);
+          if (null != b && b.floatValue() != 1f) {
+            fq = new BoostQuery(fq, b);
           }
           boostFunctions.add(fq);
         }
@@ -525,7 +529,7 @@ public class ExtendedDismaxQParser extends QParser {
    * @param shingleSize how big the phrases should be, 0 means a single phrase
    * @param tiebreaker tie breaker value for the DisjunctionMaxQueries
    */
-  protected void addShingledPhraseQueries(final BooleanQuery mainQuery, 
+  protected void addShingledPhraseQueries(final BooleanQuery.Builder mainQuery, 
       final List<Clause> clauses,
       final Collection<FieldParams> fields,
       int shingleSize,
@@ -1148,11 +1152,12 @@ public class ExtendedDismaxQParser extends QParser {
           return q;
         } else {
           // should we disable coord?
-          BooleanQuery q = new BooleanQuery(disableCoord);
+          BooleanQuery.Builder q = new BooleanQuery.Builder();
+          q.setDisableCoord(disableCoord);
           for (Query sub : lst) {
             q.add(sub, BooleanClause.Occur.SHOULD);
           }
-          return q;
+          return q.build();
         }
       } else {
         
@@ -1209,8 +1214,8 @@ public class ExtendedDismaxQParser extends QParser {
         Query sub = getAliasedQuery();
         if (sub != null) {
           Float boost = a.fields.get(f);
-          if (boost != null) {
-            sub.setBoost(boost);
+          if (boost != null && boost.floatValue() != 1f) {
+            sub = new BoostQuery(sub, boost);
           }
           lst.add(sub);
         }
@@ -1234,13 +1239,20 @@ public class ExtendedDismaxQParser extends QParser {
             if (query instanceof BooleanQuery) {
               BooleanQuery bq = (BooleanQuery) query;
               if (!bq.isCoordDisabled()) {
-                SolrPluginUtils.setMinShouldMatch(bq, minShouldMatch);
+                query = SolrPluginUtils.setMinShouldMatch(bq, minShouldMatch);
               }
             }
             if (query instanceof PhraseQuery) {
               PhraseQuery pq = (PhraseQuery)query;
               if (minClauseSize > 1 && pq.getTerms().length < minClauseSize) return null;
-              ((PhraseQuery)query).setSlop(slop);
+              PhraseQuery.Builder builder = new PhraseQuery.Builder();
+              Term[] terms = pq.getTerms();
+              int[] positions = pq.getPositions();
+              for (int i = 0; i < terms.length; ++i) {
+                builder.add(terms[i], positions[i]);
+              }
+              builder.setSlop(slop);
+              query = builder.build();
             } else if (query instanceof MultiPhraseQuery) {
               MultiPhraseQuery pq = (MultiPhraseQuery)query;
               if (minClauseSize > 1 && pq.getTermArrays().size() < minClauseSize) return null;

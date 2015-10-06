@@ -24,6 +24,7 @@ import org.apache.solr.common.SolrException;
 import org.apache.solr.handler.admin.CollectionsHandler;
 import org.apache.solr.handler.admin.CoreAdminHandler;
 import org.apache.solr.handler.admin.InfoHandler;
+import org.apache.solr.handler.admin.ConfigSetsHandler;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -178,6 +179,18 @@ public class TestCoreContainer extends SolrTestCaseJ4 {
         assertThat(e.getMessage(), containsString("Cannot unload non-existent core [non_existent_core]"));
       }
 
+      // try and remove a null core
+      try {
+        cores.unload(null);
+        fail("Should have thrown an exception when unloading a null core");
+      }
+      catch (Exception e) {
+        if (!(e instanceof SolrException)) {
+          fail("Should not have thrown SolrException but got " + e);
+        }
+        assertThat(e.getMessage(), containsString("Cannot unload non-existent core [null]"));
+      }
+
     } finally {
       cores.shutdown();
     }
@@ -296,6 +309,7 @@ public class TestCoreContainer extends SolrTestCaseJ4 {
       " <str name=\"collectionsHandler\">" + CustomCollectionsHandler.class.getName() + "</str>" +
       " <str name=\"infoHandler\">" + CustomInfoHandler.class.getName() + "</str>" +
       " <str name=\"adminHandler\">" + CustomCoreAdminHandler.class.getName() + "</str>" +
+      " <str name=\"configSetsHandler\">" + CustomConfigSetsHandler.class.getName() + "</str>" +
       "</solr>";
 
   public static class CustomCollectionsHandler extends CollectionsHandler {
@@ -312,6 +326,12 @@ public class TestCoreContainer extends SolrTestCaseJ4 {
 
   public static class CustomCoreAdminHandler extends CoreAdminHandler {
     public CustomCoreAdminHandler(CoreContainer cc) {
+      super(cc);
+    }
+  }
+
+  public static class CustomConfigSetsHandler extends ConfigSetsHandler {
+    public CustomConfigSetsHandler(CoreContainer cc) {
       super(cc);
     }
   }
@@ -625,7 +645,7 @@ public class TestCoreContainer extends SolrTestCaseJ4 {
 
   private long getCoreStartTime(final CoreContainer cc, final String name) {
     try (SolrCore tmp = cc.getCore(name)) {
-      return tmp.getStartTime();
+      return tmp.getStartTimeStamp().getTime();
     }
   }
 }

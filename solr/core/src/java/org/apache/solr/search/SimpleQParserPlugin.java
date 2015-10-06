@@ -21,6 +21,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.queryparser.simple.SimpleQueryParser;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Query;
 import org.apache.solr.common.params.CommonParams;
 import org.apache.solr.common.params.SimpleParams;
@@ -185,7 +186,8 @@ public class SimpleQParserPlugin extends QParserPlugin {
 
     @Override
     protected Query newPrefixQuery(String text) {
-      BooleanQuery bq = new BooleanQuery(true);
+      BooleanQuery.Builder bq = new BooleanQuery.Builder();
+      bq.setDisableCoord(true);
 
       for (Map.Entry<String, Float> entry : weights.entrySet()) {
         String field = entry.getKey();
@@ -204,11 +206,14 @@ public class SimpleQParserPlugin extends QParserPlugin {
           prefix = type.getPrefixQuery(qParser, sf, text);
         }
 
-        prefix.setBoost(entry.getValue());
+        float boost = entry.getValue();
+        if (boost != 1f) {
+          prefix = new BoostQuery(prefix, boost);
+        }
         bq.add(prefix, BooleanClause.Occur.SHOULD);
       }
 
-      return simplify(bq);
+      return simplify(bq.build());
     }
 
 

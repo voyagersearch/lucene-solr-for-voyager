@@ -51,7 +51,6 @@ import org.apache.lucene.util.Version;
 import org.apache.solr.cloud.ZkSolrResourceLoader;
 import org.apache.solr.common.SolrException;
 import org.apache.solr.common.SolrException.ErrorCode;
-import org.apache.solr.common.cloud.ZkNodeProps;
 import org.apache.solr.common.util.IOUtils;
 import org.apache.solr.handler.component.SearchComponent;
 import org.apache.solr.request.SolrRequestHandler;
@@ -82,7 +81,7 @@ import org.w3c.dom.NodeList;
 import org.xml.sax.InputSource;
 import org.xml.sax.SAXException;
 
-import static org.apache.solr.common.cloud.ZkNodeProps.makeMap;
+import static org.apache.solr.common.util.Utils.makeMap;
 import static org.apache.solr.common.params.CommonParams.NAME;
 import static org.apache.solr.common.params.CommonParams.PATH;
 import static org.apache.solr.core.ConfigOverlay.ZNODEVER;
@@ -231,7 +230,15 @@ public class SolrConfig extends Config implements MapSerializable {
             " This config will be removed in future versions.", getNode(indexConfigPrefix + "/nrtMode", false) == null,
         false
     );
-
+    assertWarnOrFail("Solr no longer supports forceful unlocking via the 'unlockOnStartup' option.  "+
+                     "This is no longer neccessary for the default lockType except in situations where "+
+                     "it would be dangerous and should not be done.  For other lockTypes and/or "+
+                     "directoryFactory options it may also be dangerous and users must resolve "+
+                     "problematic locks manually.",
+                     null == getNode(indexConfigPrefix + "/unlockOnStartup", false),
+                     false // warn in 5x
+                     );
+                     
     // Parse indexConfig section, using mainIndex as backup in case old config is used
     indexConfig = new SolrIndexConfig(this, "indexConfig", mainIndexConfig);
 
@@ -269,7 +276,6 @@ public class SolrConfig extends Config implements MapSerializable {
       conf = new CacheConfig(FastLRUCache.class, args, null);
     }
     fieldValueCacheConfig = conf;
-    unlockOnStartup = getBool(indexConfigPrefix + "/unlockOnStartup", false);
     useColdSearcher = getBool("query/useColdSearcher", false);
     dataDir = get("dataDir", null);
     if (dataDir != null && dataDir.length() == 0) dataDir = null;
@@ -499,7 +505,6 @@ public class SolrConfig extends Config implements MapSerializable {
   private Map<String, List<PluginInfo>> pluginStore = new LinkedHashMap<>();
 
   public final int maxWarmingSearchers;
-  public final boolean unlockOnStartup;
   public final boolean useColdSearcher;
   public final Version luceneMatchVersion;
   protected String dataDir;

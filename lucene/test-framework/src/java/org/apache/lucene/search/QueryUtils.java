@@ -39,6 +39,7 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.index.Terms;
+import org.apache.lucene.search.spans.SpanBoostQuery;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.LuceneTestCase;
 
@@ -63,10 +64,23 @@ public class QueryUtils {
       check(filtered.getQuery());
       check(filtered.getFilter());
     }
+
+    try {
+      IndexSearcher dummySearcher = new IndexSearcher(new MultiReader());
+      Query clone = q.clone();
+      clone.setBoost((float) Math.PI);
+      Query rewritten = dummySearcher.rewrite(clone);
+      Assert.assertTrue("Query " + clone.getClass() + " does not propagate Query.rewrite call to super.rewrite",
+          rewritten instanceof BoostQuery || rewritten instanceof SpanBoostQuery);
+    } catch (IOException ioe) {
+      throw new AssertionError("Unexpected I/O error", ioe);
+    }
   }
 
   /** check very basic hashCode and equals */
   public static void checkHashEquals(Query q) {
+    checkEqual(q,q);
+
     Query q2 = q.clone();
     checkEqual(q,q2);
 
@@ -82,7 +96,6 @@ public class QueryUtils {
         return "My Whacky Query";
       }
     };
-    whacky.setBoost(q.getBoost());
     checkUnequal(q, whacky);
     
     // null test
@@ -134,10 +147,6 @@ public class QueryUtils {
           check(random, q1, wrapUnderlyingReader(random, s, +1), false);
         }
         checkExplanations(q1,s);
-        
-        Query q2 = q1.clone();
-        checkEqual(s.rewrite(q1),
-                   s.rewrite(q2));
       }
     } catch (IOException e) {
       throw new RuntimeException(e);
@@ -195,7 +204,7 @@ public class QueryUtils {
     };
 
     IndexSearcher out = LuceneTestCase.newSearcher(new FCInvisibleMultiReader(readers));
-    out.setSimilarity(s.getSimilarity());
+    out.setSimilarity(s.getSimilarity(true));
     return out;
   }
   
@@ -350,7 +359,7 @@ public class QueryUtils {
               if (scorer == null) {
                 Weight w = s.createNormalizedWeight(q, true);
                 LeafReaderContext context = readerContextArray.get(leafPtr);
-                scorer = w.scorer(context, context.reader().getLiveDocs());
+                scorer = w.scorer(context);
               }
               
               int op = order[(opidx[0]++) % order.length];
@@ -411,12 +420,19 @@ public class QueryUtils {
             if (lastReader[0] != null) {
               final LeafReader previousReader = lastReader[0];
               IndexSearcher indexSearcher = LuceneTestCase.newSearcher(previousReader);
-              indexSearcher.setSimilarity(s.getSimilarity());
+              indexSearcher.setSimilarity(s.getSimilarity(true));
               Weight w = indexSearcher.createNormalizedWeight(q, true);
               LeafReaderContext ctx = (LeafReaderContext)indexSearcher.getTopReaderContext();
-              Scorer scorer = w.scorer(ctx, ctx.reader().getLiveDocs());
+              Scorer scorer = w.scorer(ctx);
               if (scorer != null) {
-                boolean more = scorer.advance(lastDoc[0] + 1) != DocIdSetIterator.NO_MORE_DOCS;
+                boolean more = false;
+                final Bits liveDocs = context.reader().getLiveDocs();
+                for (int d = scorer.advance(lastDoc[0] + 1); d != DocIdSetIterator.NO_MORE_DOCS; d = scorer.nextDoc()) {
+                  if (liveDocs == null || liveDocs.get(d)) {
+                    more = true;
+                    break;
+                  }
+                }
                 Assert.assertFalse("query's last doc was "+ lastDoc[0] +" but advance("+(lastDoc[0]+1)+") got to "+scorer.docID(),more);
               }
               leafPtr++;
@@ -433,12 +449,19 @@ public class QueryUtils {
           // previous reader, hits NO_MORE_DOCS
           final LeafReader previousReader = lastReader[0];
           IndexSearcher indexSearcher = LuceneTestCase.newSearcher(previousReader, false);
-          indexSearcher.setSimilarity(s.getSimilarity());
+          indexSearcher.setSimilarity(s.getSimilarity(true));
           Weight w = indexSearcher.createNormalizedWeight(q, true);
           LeafReaderContext ctx = previousReader.getContext();
-          Scorer scorer = w.scorer(ctx, ctx.reader().getLiveDocs());
+          Scorer scorer = w.scorer(ctx);
           if (scorer != null) {
-            boolean more = scorer.advance(lastDoc[0] + 1) != DocIdSetIterator.NO_MORE_DOCS;
+            boolean more = false;
+            final Bits liveDocs = lastReader[0].getLiveDocs();
+            for (int d = scorer.advance(lastDoc[0] + 1); d != DocIdSetIterator.NO_MORE_DOCS; d = scorer.nextDoc()) {
+              if (liveDocs == null || liveDocs.get(d)) {
+                more = true;
+                break;
+              }
+            }
             Assert.assertFalse("query's last doc was "+ lastDoc[0] +" but advance("+(lastDoc[0]+1)+") got to "+scorer.docID(),more);
           }
         }
@@ -455,7 +478,6 @@ public class QueryUtils {
     s.search(q,new SimpleCollector() {
       private Scorer scorer;
       private int leafPtr;
-      private Bits liveDocs;
       @Override
       public void setScorer(Scorer scorer) {
         this.scorer = scorer;
@@ -467,7 +489,7 @@ public class QueryUtils {
           long startMS = System.currentTimeMillis();
           for (int i=lastDoc[0]+1; i<=doc; i++) {
             Weight w = s.createNormalizedWeight(q, true);
-            Scorer scorer = w.scorer(context.get(leafPtr), liveDocs);
+            Scorer scorer = w.scorer(context.get(leafPtr));
             Assert.assertTrue("query collected "+doc+" but advance("+i+") says no more docs!",scorer.advance(i) != DocIdSetIterator.NO_MORE_DOCS);
             Assert.assertEquals("query collected "+doc+" but advance("+i+") got to "+scorer.docID(),doc,scorer.docID());
             float advanceScore = scorer.score();
@@ -498,11 +520,18 @@ public class QueryUtils {
         if (lastReader[0] != null) {
           final LeafReader previousReader = lastReader[0];
           IndexSearcher indexSearcher = LuceneTestCase.newSearcher(previousReader);
-          indexSearcher.setSimilarity(s.getSimilarity());
+          indexSearcher.setSimilarity(s.getSimilarity(true));
           Weight w = indexSearcher.createNormalizedWeight(q, true);
-          Scorer scorer = w.scorer((LeafReaderContext)indexSearcher.getTopReaderContext(), previousReader.getLiveDocs());
+          Scorer scorer = w.scorer((LeafReaderContext)indexSearcher.getTopReaderContext());
           if (scorer != null) {
-            boolean more = scorer.advance(lastDoc[0] + 1) != DocIdSetIterator.NO_MORE_DOCS;
+            boolean more = false;
+            final Bits liveDocs = context.reader().getLiveDocs();
+            for (int d = scorer.advance(lastDoc[0] + 1); d != DocIdSetIterator.NO_MORE_DOCS; d = scorer.nextDoc()) {
+              if (liveDocs == null || liveDocs.get(d)) {
+                more = true;
+                break;
+              }
+            }
             Assert.assertFalse("query's last doc was "+ lastDoc[0] +" but advance("+(lastDoc[0]+1)+") got to "+scorer.docID(),more);
           }
           leafPtr++;
@@ -510,7 +539,6 @@ public class QueryUtils {
 
         lastReader[0] = context.reader();
         lastDoc[0] = -1;
-        liveDocs = context.reader().getLiveDocs();
       }
     });
 
@@ -519,11 +547,18 @@ public class QueryUtils {
       // previous reader, hits NO_MORE_DOCS
       final LeafReader previousReader = lastReader[0];
       IndexSearcher indexSearcher = LuceneTestCase.newSearcher(previousReader);
-      indexSearcher.setSimilarity(s.getSimilarity());
+      indexSearcher.setSimilarity(s.getSimilarity(true));
       Weight w = indexSearcher.createNormalizedWeight(q, true);
-      Scorer scorer = w.scorer((LeafReaderContext)indexSearcher.getTopReaderContext(), previousReader.getLiveDocs());
+      Scorer scorer = w.scorer((LeafReaderContext)indexSearcher.getTopReaderContext());
       if (scorer != null) {
-        boolean more = scorer.advance(lastDoc[0] + 1) != DocIdSetIterator.NO_MORE_DOCS;
+        boolean more = false;
+        final Bits liveDocs = lastReader[0].getLiveDocs();
+        for (int d = scorer.advance(lastDoc[0] + 1); d != DocIdSetIterator.NO_MORE_DOCS; d = scorer.nextDoc()) {
+          if (liveDocs == null || liveDocs.get(d)) {
+            more = true;
+            break;
+          }
+        }
         Assert.assertFalse("query's last doc was "+ lastDoc[0] +" but advance("+(lastDoc[0]+1)+") got to "+scorer.docID(),more);
       }
     }
@@ -533,8 +568,8 @@ public class QueryUtils {
   public static void checkBulkScorerSkipTo(Random r, Query query, IndexSearcher searcher) throws IOException {
     Weight weight = searcher.createNormalizedWeight(query, true);
     for (LeafReaderContext context : searcher.getIndexReader().leaves()) {
-      final Scorer scorer = weight.scorer(context, context.reader().getLiveDocs());
-      final BulkScorer bulkScorer = weight.bulkScorer(context, context.reader().getLiveDocs());
+      final Scorer scorer = weight.scorer(context);
+      final BulkScorer bulkScorer = weight.bulkScorer(context);
       if (scorer == null && bulkScorer == null) {
         continue;
       } else if (bulkScorer == null) {
@@ -563,7 +598,7 @@ public class QueryUtils {
             Assert.assertEquals(scorer.score(), scorer2.score(), 0.01f);
             scorer.nextDoc();
           }
-        }, min, max);
+        }, null, min, max);
         assert max <= next;
         assert next <= scorer.docID();
         upTo = max;
@@ -578,7 +613,7 @@ public class QueryUtils {
               // no more matches
               assert false;
             }
-          }, upTo, DocIdSetIterator.NO_MORE_DOCS);
+          }, null, upTo, DocIdSetIterator.NO_MORE_DOCS);
           break;
         }
       }

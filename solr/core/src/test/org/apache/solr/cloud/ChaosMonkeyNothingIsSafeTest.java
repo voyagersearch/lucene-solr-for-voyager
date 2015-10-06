@@ -91,14 +91,7 @@ public class ChaosMonkeyNothingIsSafeTest extends AbstractFullDistribZkTestBase 
     super.distribSetUp();
     // can help to hide this when testing and looking at logs
     //ignoreException("shard update error");
-    System.setProperty("numShards", Integer.toString(sliceCount));
     useFactory("solr.StandardDirectoryFactory");
-  }
-  
-  @Override
-  public void distribTearDown() throws Exception {
-    System.clearProperty("numShards");
-    super.distribTearDown();
   }
   
   public ChaosMonkeyNothingIsSafeTest() {
@@ -219,7 +212,7 @@ public class ChaosMonkeyNothingIsSafeTest extends AbstractFullDistribZkTestBase 
       
       // TODO: assert we didnt kill everyone
       
-      zkStateReader.updateClusterState(true);
+      zkStateReader.updateClusterState();
       assertTrue(zkStateReader.getClusterState().getLiveNodes().size() > 0);
       
       

@@ -41,6 +41,7 @@ import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryUtils;
@@ -453,7 +454,7 @@ public class CommonTermsQueryTest extends LuceneTestCase {
       
       IndexSearcher searcher = newSearcher(reader);
       Occur lowFreqOccur = randomOccur(random());
-      BooleanQuery verifyQuery = new BooleanQuery();
+      BooleanQuery.Builder verifyQuery = new BooleanQuery.Builder();
       CommonTermsQuery cq = new CommonTermsQuery(randomOccur(random()),
           lowFreqOccur, highFreq - 1, random().nextBoolean());
       for (TermAndFreq termAndFreq : lowTerms) {
@@ -467,7 +468,7 @@ public class CommonTermsQueryTest extends LuceneTestCase {
       
       TopDocs cqSearch = searcher.search(cq, reader.maxDoc());
       
-      TopDocs verifySearch = searcher.search(verifyQuery, reader.maxDoc());
+      TopDocs verifySearch = searcher.search(verifyQuery.build(), reader.maxDoc());
       assertEquals(verifySearch.totalHits, cqSearch.totalHits);
       Set<Integer> hits = new HashSet<>();
       for (ScoreDoc doc : verifySearch.scoreDocs) {
@@ -546,7 +547,7 @@ public class CommonTermsQueryTest extends LuceneTestCase {
     protected Query newTermQuery(Term term, TermContext context) {
       Query query = super.newTermQuery(term, context);
       if (term.text().equals("universe")) {
-        query.setBoost(100f);
+        query = new BoostQuery(query, 100f);
       }
       return query;
     }

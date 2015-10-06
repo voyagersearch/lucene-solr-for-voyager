@@ -18,10 +18,10 @@ package org.apache.lucene.queryparser.surround.query;
 
 import java.util.List;
 import java.util.Iterator;
-
 import java.io.IOException;
 
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.spans.SpanNearQuery;
 import org.apache.lucene.search.spans.SpanQuery;
@@ -68,7 +68,6 @@ public class DistanceQuery extends ComposedQuery implements DistanceSubQuery {
   public void addSpanQueries(SpanNearClauseFactory sncf) throws IOException {
     Query snq = getSpanNearQuery(sncf.getIndexReader(),
                                   sncf.getFieldName(),
-                                  getWeight(),
                                   sncf.getBasicQueryFactory());
     sncf.addSpanQuery(snq);
   }
@@ -76,7 +75,6 @@ public class DistanceQuery extends ComposedQuery implements DistanceSubQuery {
   public Query getSpanNearQuery(
           IndexReader reader,
           String fieldName,
-          float boost,
           BasicQueryFactory qf) throws IOException {
     SpanQuery[] spanClauses = new SpanQuery[getNrSubQueries()];
     Iterator<?> sqi = getSubQueriesIterator();
@@ -90,16 +88,14 @@ public class DistanceQuery extends ComposedQuery implements DistanceSubQuery {
           ((DistanceSubQuery)sqi.next()).addSpanQueries(sncf);
           sncf.clear();
         }
-        return SrndQuery.theEmptyLcnQuery;
+        return new MatchNoDocsQuery();
       }
       
       spanClauses[qi] = sncf.makeSpanClause();
       qi++;
     }
 
-    SpanNearQuery r = new SpanNearQuery(spanClauses, getOpDistance() - 1, subQueriesOrdered());
-    r.setBoost(boost);
-    return r;
+    return new SpanNearQuery(spanClauses, getOpDistance() - 1, subQueriesOrdered());
   }
 
   @Override

@@ -250,6 +250,11 @@ public abstract class AbstractSpatialFieldType<T extends SpatialStrategy> extend
   public final boolean isPolyField() {
     return true;
   }
+  
+  /** Get the SpatialContext **/
+  public SpatialContext getSpatialContext() {
+    return ctx;
+  }
 
   //--------------------------------------------------------------
   // Query Support

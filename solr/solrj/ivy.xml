@@ -31,6 +31,7 @@
     <dependency org="org.apache.httpcomponents" name="httpclient" rev="${/org.apache.httpcomponents/httpclient}" conf="compile"/>
     <dependency org="org.apache.httpcomponents" name="httpmime" rev="${/org.apache.httpcomponents/httpmime}" conf="compile"/>
     <dependency org="org.apache.httpcomponents" name="httpcore" rev="${/org.apache.httpcomponents/httpcore}" conf="compile"/>
+    <dependency org="com.spatial4j" name="spatial4j" rev="${/com.spatial4j/spatial4j}" conf="compile"/>
     <dependency org="commons-io" name="commons-io" rev="${/commons-io/commons-io}" conf="compile"/>
     <dependency org="org.codehaus.woodstox" name="woodstox-core-asl" rev="${/org.codehaus.woodstox/woodstox-core-asl}" conf="compile"/>
     <dependency org="org.codehaus.woodstox" name="stax2-api" rev="${/org.codehaus.woodstox/stax2-api}" conf="compile"/>

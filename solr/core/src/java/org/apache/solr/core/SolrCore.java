@@ -2166,6 +2166,7 @@ public final class SolrCore implements SolrInfoMBean, Closeable {
     m.put("xml", new XMLResponseWriter());
     m.put("standard", m.get("xml"));
     m.put(CommonParams.JSON, new JSONResponseWriter());
+    m.put("geojson", new GeoJSONResponseWriter());
     m.put("python", new PythonResponseWriter());
     m.put("php", new PHPResponseWriter());
     m.put("phps", new PHPSerializedResponseWriter());

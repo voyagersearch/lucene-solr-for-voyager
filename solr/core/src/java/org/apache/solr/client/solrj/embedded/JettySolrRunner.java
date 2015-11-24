@@ -27,11 +27,14 @@ import javax.servlet.ServletResponse;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+import java.io.File;
 import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Random;
@@ -40,6 +43,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.apache.solr.core.CoreContainer;
+import org.apache.solr.core.SolrCore;
+import org.apache.solr.servlet.LoadAdminUiServlet;
 import org.apache.solr.servlet.SolrDispatchFilter;
 import org.eclipse.jetty.server.Connector;
 import org.eclipse.jetty.server.HttpConfiguration;
@@ -50,6 +55,7 @@ import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.ServerConnector;
 import org.eclipse.jetty.server.SslConnectionFactory;
 import org.eclipse.jetty.server.session.HashSessionIdManager;
+import org.eclipse.jetty.servlet.DefaultServlet;
 import org.eclipse.jetty.servlet.BaseHolder;
 import org.eclipse.jetty.servlet.FilterHolder;
 import org.eclipse.jetty.servlet.ServletContextHandler;
@@ -347,6 +353,39 @@ public class JettySolrRunner {
         System.clearProperty("hostPort");
       }
     });
+
+
+    // Host the solr admin interface
+    List<String> check = new ArrayList<>();
+    check.add("..");
+    check.add("../..");
+    check.add("../../..");
+    check.add("../../../..");
+
+    try {
+      URL main = SolrCore.class.getResource("SolrCore.class");
+      if ("file".equalsIgnoreCase(main.getProtocol())) {
+        File path = new File(main.getPath(), "../../../../../..").getCanonicalFile();
+        System.out.println( path.getAbsolutePath() );
+        
+        check.add(path.getAbsolutePath()+"/solr");
+        check.add(path.getAbsolutePath()+"/../solr");
+      }
+    }
+    catch(Exception ex) {
+      ex.printStackTrace();
+    }
+    
+    for(String c : check ) {
+      File f = new File(c+"/webapp/web/admin.html");
+      if(f.exists()) {
+        root.setResourceBase(f.getParentFile().getAbsolutePath());
+        root.setWelcomeFiles(new String[]{"index.html"});
+        root.addServlet(LoadAdminUiServlet.class, "/admin.html");
+        root.addServlet(DefaultServlet.class, "/*");
+        return;
+      }      
+    }
 
     // for some reason, there must be a servlet for this to get applied
     root.addServlet(Servlet404.class, "/*");

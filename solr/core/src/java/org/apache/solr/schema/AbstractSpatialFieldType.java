@@ -32,12 +32,15 @@ import java.util.concurrent.ExecutionException;
 import com.google.common.base.Throwables;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
+import org.apache.lucene.spatial.query.SpatialOperation;
 import com.spatial4j.core.context.SpatialContext;
 import com.spatial4j.core.context.SpatialContextFactory;
 import com.spatial4j.core.distance.DistanceUtils;
+import com.spatial4j.core.io.ShapeWriter;
 import com.spatial4j.core.shape.Point;
 import com.spatial4j.core.shape.Rectangle;
 import com.spatial4j.core.shape.Shape;
+
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.StorableField;
@@ -50,7 +53,6 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.spatial.SpatialStrategy;
 import org.apache.lucene.spatial.query.SpatialArgs;
 import org.apache.lucene.spatial.query.SpatialArgsParser;
-import org.apache.lucene.spatial.query.SpatialOperation;
 import org.apache.lucene.uninverting.UninvertingReader.Type;
 import org.apache.solr.common.SolrException;
 import org.apache.solr.common.params.SolrParams;
@@ -226,35 +228,19 @@ public abstract class AbstractSpatialFieldType<T extends SpatialStrategy> extend
   protected Shape parseShape(String str) {
     if (str.length() == 0)
       throw new SolrException(SolrException.ErrorCode.BAD_REQUEST, "empty string shape");
-    if (Character.isLetter(str.charAt(0))) {//WKT starts with a letter
-      try {
-        return ctx.readShapeFromWkt(str);
-      } catch (Exception e) {
-        String message = e.getMessage();
-        if (!message.contains(str))
-          message = "Couldn't parse shape '" + str + "' because: " + message;
-        throw new SolrException(SolrException.ErrorCode.BAD_REQUEST, message, e);
-      }
-    } else {
-      return SpatialUtils.parsePointSolrException(str, ctx);
+    
+    Shape shape = ctx.readShape(str);
+    if(shape==null) {
+      throw new SolrException(SolrException.ErrorCode.BAD_REQUEST, "Unable to parse shape from: "+str);
     }
+    return shape;
   }
 
   /**
-   * Returns a String version of a shape to be used for the stored value. This method in Solr is only called if for some
-   * reason a Shape object is passed to the field type (perhaps via a custom UpdateRequestProcessor),
-   * *and* the field is marked as stored.  <em>The default implementation throws an exception.</em>
-   * <p>
-   * Spatial4j 0.4 is probably the last release to support SpatialContext.toString(shape) but it's deprecated with no
-   * planned replacement.  Shapes do have a toString() method but they are generally internal/diagnostic and not
-   * standard WKT.
-   * The solution is subclassing and calling ctx.toString(shape) or directly using LegacyShapeReadWriterFormat or
-   * passing in some sort of custom wrapped shape that holds a reference to a String or can generate it.
+   * Use the first registered {@link ShapeWriter} to convert the same to a String
    */
   protected String shapeToString(Shape shape) {
-//    return ctx.toString(shape);
-    throw new SolrException(SolrException.ErrorCode.SERVER_ERROR,
-        "Getting a String from a Shape is no longer possible. See javadocs for commentary.");
+    return ctx.toString(shape);
   }
 
   /** Called from {@link #getStrategy(String)} upon first use by fieldName. } */
@@ -263,6 +249,11 @@ public abstract class AbstractSpatialFieldType<T extends SpatialStrategy> extend
   @Override
   public final boolean isPolyField() {
     return true;
+  }
+  
+  /** Get the SpatialContext **/
+  public SpatialContext getSpatialContext() {
+    return ctx;
   }
 
   //--------------------------------------------------------------

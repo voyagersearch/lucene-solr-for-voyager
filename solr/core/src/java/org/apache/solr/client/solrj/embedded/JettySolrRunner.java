@@ -377,11 +377,11 @@ public class JettySolrRunner {
     }
     
     for(String c : check ) {
-      File f = new File(c+"/webapp/web/admin.html");
+      File f = new File(c+"/webapp/web/index.html");
       if(f.exists()) {
         root.setResourceBase(f.getParentFile().getAbsolutePath());
         root.setWelcomeFiles(new String[]{"index.html"});
-        root.addServlet(LoadAdminUiServlet.class, "/admin.html");
+        root.addServlet(LoadAdminUiServlet.class, "/index.html");
         root.addServlet(DefaultServlet.class, "/*");
         return;
       }      

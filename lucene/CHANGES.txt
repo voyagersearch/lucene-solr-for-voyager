@@ -89,6 +89,11 @@ Optimizations
   each leaf block in the default codec, to reduce the index
   size (Mike McCandless)
 
+* LUCENE-6901: Optimize dimensional values indexing: use faster
+  IntroSorter instead of InPlaceMergeSorter, and specialize 1D
+  merging to merge sort the already sorted segments instead of
+  re-indexing (Mike McCandless)
+
 Changes in Runtime Behavior
 
 * LUCENE-6789: IndexSearcher's default Similarity is changed to BM25Similarity.
@@ -97,6 +102,13 @@ Changes in Runtime Behavior
 * LUCENE-6886: Reserve the .tmp file name extension for temp files,
   and codec components are no longer allowed to use this extension
   (Robert Muir, Mike McCandless)
+
+======================= Lucene 5.5.0 =======================
+
+API Changes
+
+* LUCENE-6900: Grouping sortWithinGroup variables used to allow null to mean
+  Sort.RELEVANCE.  Null is no longer permitted.  (David Smiley)
 
 ======================= Lucene 5.4.0 =======================
 
@@ -224,7 +236,14 @@ Optimizations
   be fully read from disk if the supplied StoredFieldVisitor doesn't want it.
   So put your largest text field value last to benefit. (David Smiley)
 
+* LUCENE-6909: Remove unnecessary synchronized from
+  FacetsConfig.getDimConfig for better concurrency (Sanne Grinovero
+  via Mike McCandless)
+
 Bug Fixes
+
+* LUCENE-6905: Unwrap center longitude for dateline crossing 
+  GeoPointDistanceQuery. (Nick Knize)
 
 * LUCENE-6817: ComplexPhraseQueryParser.ComplexPhraseQuery does not display 
   slop in toString(). (Ahmet Arslan via Dawid Weiss)

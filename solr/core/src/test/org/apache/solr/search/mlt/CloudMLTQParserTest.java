@@ -17,6 +17,10 @@ package org.apache.solr.search.mlt;
  * limitations under the License.
  */
 
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+
 import org.apache.solr.client.solrj.SolrServerException;
 import org.apache.solr.client.solrj.response.QueryResponse;
 import org.apache.solr.cloud.AbstractFullDistribZkTestBase;
@@ -28,11 +32,6 @@ import org.apache.solr.common.params.ModifiableSolrParams;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashSet;
 
 public class CloudMLTQParserTest extends AbstractFullDistribZkTestBase {
 
@@ -135,15 +134,16 @@ public class CloudMLTQParserTest extends AbstractFullDistribZkTestBase {
       "(+(lowerfilt:usa lowerfilt:bmw) -id:3)/no_coord"};
 
     String[] actualParsedQueries;
-    
     if(queryResponse.getDebugMap().get("parsedquery") instanceof  String) {
-      actualParsedQueries = new String[]{(String) queryResponse.getDebugMap().get("parsedquery")};
+      String parsedQueryString = (String) queryResponse.getDebugMap().get("parsedquery");
+      assertTrue(parsedQueryString.equals(expectedQueryStrings[0]) || parsedQueryString.equals(expectedQueryStrings[1]));
     } else {
       actualParsedQueries = ((ArrayList<String>) queryResponse
           .getDebugMap().get("parsedquery")).toArray(new String[0]);
       Arrays.sort(actualParsedQueries);
+      assertArrayEquals(expectedQueryStrings, actualParsedQueries);
     }
-    assertArrayEquals(expectedQueryStrings, actualParsedQueries);
+
 
     params = new ModifiableSolrParams();
     params.set(CommonParams.Q, "{!mlt qf=lowerfilt,lowerfilt1 mindf=0 mintf=1}26");
@@ -158,19 +158,6 @@ public class CloudMLTQParserTest extends AbstractFullDistribZkTestBase {
     }
     
     assertArrayEquals(expectedIds, actualIds);
-
-    expectedQueryStrings = new String[]{
-      "(+(lowerfilt:bmw lowerfilt:usa) -id:26)/no_coord",
-      "(+(lowerfilt:usa lowerfilt:bmw lowerfilt:328i) -id:26)/no_coord"};
-
-    if(queryResponse.getDebugMap().get("parsedquery") instanceof  String) {
-      actualParsedQueries = new String[]{(String) queryResponse.getDebugMap().get("parsedquery")};
-    } else {
-      actualParsedQueries = ((ArrayList<String>) queryResponse
-          .getDebugMap().get("parsedquery")).toArray(new String[0]);
-      Arrays.sort(actualParsedQueries);
-    }
-    assertArrayEquals(expectedQueryStrings, actualParsedQueries);
 
     params = new ModifiableSolrParams();
     // Test out a high value of df and make sure nothing matches.
@@ -224,13 +211,5 @@ public class CloudMLTQParserTest extends AbstractFullDistribZkTestBase {
     } catch (SolrServerException e) {
       // Do nothing.
     }
-  }
-  
-  private boolean compareParsedQueryStrings(String expected, String actual) {
-    HashSet<String> expectedQueryParts = new HashSet<>();
-    expectedQueryParts.addAll(Arrays.asList(expected.split("\\s+")));
-    HashSet<String> actualQueryParts = new HashSet();
-    actualQueryParts.addAll(Arrays.asList(actual.split("\\s+")));
-    return expectedQueryParts.containsAll(actualQueryParts);
   }
 }

@@ -20,6 +20,7 @@ package org.apache.solr.search.facet;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -35,6 +36,7 @@ import org.apache.solr.common.SolrException;
 import org.apache.solr.common.util.SimpleOrderedMap;
 import org.apache.solr.handler.component.ResponseBuilder;
 import org.apache.solr.request.SolrRequestInfo;
+import org.apache.solr.response.transform.FacetMemberFactory;
 import org.apache.solr.schema.SchemaField;
 import org.apache.solr.search.BitDocSet;
 import org.apache.solr.search.DocIterator;
@@ -51,7 +53,9 @@ public class FacetProcessor<FacetRequestT extends FacetRequest>  {
   LinkedHashMap<String,SlotAcc> accMap;
   protected SlotAcc[] accs;
   protected CountSlotAcc countAcc;
-
+  
+  String cacheDocSetKey; // key to cache the DocSet
+  
   FacetProcessor(FacetContext fcontext, FacetRequestT freq) {
     this.fcontext = fcontext;
     this.freq = freq;
@@ -214,11 +218,17 @@ public class FacetProcessor<FacetRequestT extends FacetRequest>  {
     if (domain == null || domain.size() == 0 && !freq.processEmpty) {
       return;
     }
-
+        
+    // If this value exists, put the base in the context
+    Map<String, DocSet> info = FacetMemberFactory.getFacetMemberCache(fcontext.req);
+    
     for (Map.Entry<String,FacetRequest> sub : freq.getSubFacets().entrySet()) {
       // make a new context for each sub-facet since they can change the domain
       FacetContext subContext = fcontext.sub(filter, domain);
       FacetProcessor subProcessor = sub.getValue().createFacetProcessor(subContext);
+      if(info!=null) {
+        subProcessor.cacheDocSetKey = sub.getKey();
+      }
       subProcessor.process();
       response.add( sub.getKey(), subProcessor.getResponse() );
     }
@@ -284,8 +294,11 @@ public class FacetProcessor<FacetRequestT extends FacetRequest>  {
 
 
   public void fillBucket(SimpleOrderedMap<Object> bucket, Query q, DocSet result) throws IOException {
-    boolean needDocSet = freq.getFacetStats().size() > 0 || freq.getSubFacets().size() > 0;
-
+    boolean needDocSet = 
+        freq.getFacetStats().size() > 0 || 
+        freq.getSubFacets().size() > 0 ||
+        cacheDocSetKey != null;
+    
     // TODO: always collect counts or not???
 
     int count;
@@ -313,6 +326,11 @@ public class FacetProcessor<FacetRequestT extends FacetRequest>  {
       processSubs(bucket, q, result);
     } finally {
       if (result != null) {
+        if(cacheDocSetKey!=null) {
+          FacetMemberFactory.getFacetMemberCache(fcontext.req)
+            .put(cacheDocSetKey, result);
+        }
+        
         // result.decref(); // OFF-HEAP
         result = null;
       }

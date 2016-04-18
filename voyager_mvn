@@ -1,8 +1,8 @@
 ant clean-maven-build
 
-version=5.3.0-VG4
-#mvn_repo=/Users/jdeolive/Projects/voyager/mvn
-mvn_repo=/Users/ryan/workspace/m2-repository
+version=5.3.0-VG5
+mvn_repo=/Users/jdeolive/Projects/voyager/mvn
+#mvn_repo=/Users/ryan/workspace/m2-repository
 
 mvn_opts="-Dmaven.repo.local=${mvn_repo}"
 
